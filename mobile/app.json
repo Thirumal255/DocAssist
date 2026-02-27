@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "DocAssist",
+    "slug": "docassist",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "docassist",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.docassist.app"
+    },
+    "android": {
+      "package": "com.docassist.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

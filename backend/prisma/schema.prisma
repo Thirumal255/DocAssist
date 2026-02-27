@@ -1,0 +1,211 @@
+// DocAssist - Prisma Schema
+// Updated: Multiple time slots per day for doctor availability
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model - Doctors and Admins
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  password        String
+  name            String
+  role            Role      @default(doctor)
+  phone           String?
+  specialty       String?
+  registrationNo  String?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  appointments    Appointment[]
+  prescriptions   Prescription[]
+  visits          Visit[]
+  availability    DoctorAvailability[]
+
+  @@map("users")
+}
+
+enum Role {
+  admin
+  doctor
+}
+
+// Doctor Availability - MULTIPLE time slots per day allowed
+// Example: Monday 10am-1pm AND Monday 5pm-7pm = TWO records
+model DoctorAvailability {
+  id          String   @id @default(cuid())
+  doctorId    String
+  doctor      User     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  dayOfWeek   Int      // 0=Sunday, 1=Monday, ..., 6=Saturday
+  startTime   String   // "09:00" or "17:00"
+  endTime     String   // "13:00" or "19:00"
+  slotDuration Int     @default(30) // minutes per slot
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // NO unique constraint - allows multiple slots per day
+  @@index([doctorId, dayOfWeek])
+  @@map("doctor_availability")
+}
+
+// Patient model
+model Patient {
+  id                String    @id @default(cuid())
+  name              String
+  dob               DateTime
+  gender            Gender
+  phone             String    @unique
+  email             String?
+  bloodGroup        String?
+  allergies         String[]  @default([])
+  chronicConditions String[]  @default([])
+  address           String?
+  emergencyContact  String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  appointments      Appointment[]
+  visits            Visit[]
+  prescriptions     Prescription[]
+
+  @@map("patients")
+}
+
+enum Gender {
+  male
+  female
+  other
+}
+
+// Appointment model
+model Appointment {
+  id              String            @id @default(cuid())
+  patientId       String
+  patient         Patient           @relation(fields: [patientId], references: [id])
+  doctorId        String
+  doctor          User              @relation(fields: [doctorId], references: [id])
+  scheduledAt     DateTime
+  status          AppointmentStatus @default(scheduled)
+  type            AppointmentType   @default(new_visit)
+  chiefComplaint  String?
+  notes           String?
+  cancelledBy     String?
+  cancelReason    String?
+  rescheduledFrom DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  visit           Visit?
+
+  @@map("appointments")
+}
+
+enum AppointmentStatus {
+  scheduled
+  checked_in
+  consulting
+  completed
+  cancelled
+  no_show
+}
+
+enum AppointmentType {
+  new_visit
+  follow_up
+  emergency
+}
+
+// Visit model
+model Visit {
+  id              String       @id @default(cuid())
+  patientId       String
+  patient         Patient      @relation(fields: [patientId], references: [id])
+  doctorId        String
+  doctor          User         @relation(fields: [doctorId], references: [id])
+  appointmentId   String?      @unique
+  appointment     Appointment? @relation(fields: [appointmentId], references: [id])
+  visitedAt       DateTime     @default(now())
+  chiefComplaint  String?
+  diagnosis       String?
+  notes           String?
+  createdAt       DateTime     @default(now())
+
+  vitals          Vitals?
+  prescription    Prescription?
+
+  @@map("visits")
+}
+
+// Vitals model
+model Vitals {
+  id          String   @id @default(cuid())
+  visitId     String   @unique
+  visit       Visit    @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  bp          String?
+  pulse       Int?
+  temperature Float?
+  weight      Float?
+  height      Float?
+  spo2        Int?
+  createdAt   DateTime @default(now())
+
+  @@map("vitals")
+}
+
+// Prescription model
+model Prescription {
+  id               String             @id @default(cuid())
+  visitId          String             @unique
+  visit            Visit              @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  patientId        String
+  patient          Patient            @relation(fields: [patientId], references: [id])
+  doctorId         String
+  doctor           User               @relation(fields: [doctorId], references: [id])
+  diagnosis        String
+  aiSuggestionUsed Boolean            @default(false)
+  pdfUrl           String?
+  createdAt        DateTime           @default(now())
+
+  items            PrescriptionItem[]
+
+  @@map("prescriptions")
+}
+
+// Prescription Item model
+model PrescriptionItem {
+  id             String       @id @default(cuid())
+  prescriptionId String
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicineName   String
+  genericName    String?
+  dose           String
+  frequency      String       @default("daily")
+  timing         String       @default("after_food")
+  days           Int          @default(30)
+  instructions   String?
+
+  @@map("prescription_items")
+}
+
+// Medicine database
+model Medicine {
+  id           String   @id @default(cuid())
+  brandName    String
+  genericName  String
+  strength     String
+  form         String
+  manufacturer String?
+  mrp          Float?
+  category     String?
+  createdAt    DateTime @default(now())
+
+  @@map("medicines")
+}

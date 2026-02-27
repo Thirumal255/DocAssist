@@ -1,0 +1,14 @@
+Local postgress cred
+postgres/admin -->super user .. port 5432  postgres/postgres for client system user
+----------------------------------------------------------------------------------------
+
+dr.sharma@docassist.in/doctor123
+admin@docassist.in/admin123
+
+
+To start backend
+npm run dev
+
+to start front end
+
+npx expo start -c
