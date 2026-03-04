@@ -31,13 +31,16 @@ interface TimeSlot {
   available: boolean;
 }
 
+// SIMPLIFIED STATUS CONFIG
 const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
+  // Lowercase matches
   scheduled: { color: '#0A7B6E', bg: '#E6F5F3', label: 'Scheduled' },
-  checked_in: { color: '#D97706', bg: '#FEF3C7', label: 'Checked In' },
-  consulting: { color: '#7C3AED', bg: '#EDE9FE', label: 'Consulting' },
   completed: { color: '#16A34A', bg: '#D1FAE5', label: 'Completed' },
   cancelled: { color: '#DC2626', bg: '#FEE2E2', label: 'Cancelled' },
-  no_show: { color: '#6B7280', bg: '#F3F4F6', label: 'No Show' },
+  // Uppercase matches (Prisma Enum)
+  SCHEDULED: { color: '#0A7B6E', bg: '#E6F5F3', label: 'Scheduled' },
+  COMPLETED: { color: '#16A34A', bg: '#D1FAE5', label: 'Completed' },
+  CANCELLED: { color: '#DC2626', bg: '#FEE2E2', label: 'Cancelled' },
 };
 
 const formatTime = (dateStr: string) => new Date(dateStr).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -75,27 +78,19 @@ export default function AppointmentsScreen() {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
-  // --- FIX START: Correctly reset filters and reload data on focus ---
   useFocusEffect(
     useCallback(() => {
       log.screen(MODULE, 'focus - resetting filters');
-      
-      const today = new Date(); // Use this explicit date instance
-      
+      const today = new Date();
       setSelectedDate(today);
       setSelectedDoctor('all');
       setSelectedAppointment(null);
       closeAllModals();
-      
-      // Load fresh data using the explicit 'today' variable
-      // Using 'selectedDate' state here would be stale (referencing previous state)
       loadDoctors();
       loadAppointmentsForDate(today, 'all');
-      
       return () => {};
     }, [])
   );
-  // --- FIX END ---
 
   useEffect(() => {
     if (showRescheduleModal && selectedAppointment) {
@@ -169,6 +164,47 @@ export default function AppointmentsScreen() {
     }
   };
 
+  // --- 1. Mark as Completed ---
+  const handleMarkCompleted = async () => {
+    if (!selectedAppointment) return;
+    setIsProcessing(true);
+    try {
+      const result = await appointmentsApi.updateStatus(selectedAppointment.id, 'COMPLETED');
+      if (result.data) {
+        Alert.alert('Success', 'Appointment marked as completed');
+        closeAllModals();
+        loadAppointmentsForDate(selectedDate, selectedDoctor);
+      } else {
+        Alert.alert('Error', result.error || 'Failed to update status');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Something went wrong');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // --- 2. Quick No Show (Cancels with reason) ---
+  const handleMarkNoShow = async () => {
+    if (!selectedAppointment) return;
+    setIsProcessing(true);
+    try {
+      const result = await appointmentsApi.cancel(selectedAppointment.id, "Patient No Show");
+      if (result.data) {
+        Alert.alert('Success', 'Marked as No Show');
+        closeAllModals();
+        loadAppointmentsForDate(selectedDate, selectedDoctor);
+      } else {
+        Alert.alert('Error', result.error || 'Failed to update');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Something went wrong');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // --- 3. Custom Cancel ---
   const handleCancel = async () => {
     if (!selectedAppointment) return;
     setIsProcessing(true);
@@ -228,8 +264,9 @@ export default function AppointmentsScreen() {
   };
 
   const renderAppointment = ({ item }: { item: Appointment }) => {
-    const status = STATUS_CONFIG[item.status] || STATUS_CONFIG.scheduled;
-    const canModify = !['completed', 'cancelled'].includes(item.status);
+    const statusKey = item.status; // No need to lowercase if Backend sends uppercase
+    const status = STATUS_CONFIG[statusKey] || STATUS_CONFIG.SCHEDULED;
+    const isCompletedOrCancelled = ['COMPLETED', 'CANCELLED'].includes(item.status);
     
     return (
       <TouchableOpacity style={styles.card} onPress={() => { setSelectedAppointment(item); setShowActionModal(true); }}>
@@ -255,7 +292,7 @@ export default function AppointmentsScreen() {
               {item.type === 'new_visit' ? 'New' : 'Follow-up'}
             </Text>
           </View>
-          {canModify && <Ionicons name="ellipsis-vertical" size={18} color="#6B7C93" style={{ marginTop: 8 }} />}
+          {!isCompletedOrCancelled && <Ionicons name="ellipsis-vertical" size={18} color="#6B7C93" style={{ marginTop: 8 }} />}
         </View>
       </TouchableOpacity>
     );
@@ -335,26 +372,47 @@ export default function AppointmentsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Appointment</Text>
+              <Text style={styles.modalTitle}>Appointment Actions</Text>
               <TouchableOpacity onPress={closeAllModals}><Ionicons name="close" size={24} color="#2C3E50" /></TouchableOpacity>
             </View>
             {selectedAppointment && (
               <>
                 <View style={styles.summary}>
                   <View style={styles.summaryRow}><Ionicons name="person" size={16} color="#0A7B6E" /><Text style={styles.summaryValue}>{selectedAppointment.patient.name}</Text></View>
-                  <View style={styles.summaryRow}><Ionicons name="medical" size={16} color="#0A7B6E" /><Text style={styles.summaryValue}>{selectedAppointment.doctor.name}</Text></View>
-                  <View style={styles.summaryRow}><Ionicons name="calendar" size={16} color="#0A7B6E" /><Text style={styles.summaryValue}>{formatDate(selectedAppointment.scheduledAt)} at {formatTime(selectedAppointment.scheduledAt)}</Text></View>
+                  <View style={styles.summaryRow}><Ionicons name="time" size={16} color="#0A7B6E" /><Text style={styles.summaryValue}>{formatTime(selectedAppointment.scheduledAt)}</Text></View>
                 </View>
-                {!['completed', 'cancelled'].includes(selectedAppointment.status) && (
-                  <View style={styles.actionButtons}>
-                    <TouchableOpacity style={styles.actionButton} onPress={() => { setShowActionModal(false); setShowRescheduleModal(true); }}>
-                      <Ionicons name="calendar" size={20} color="#0A7B6E" /><Text style={styles.actionButtonText}>Reschedule</Text>
+                
+                {/* --- SIMPLIFIED ACTIONS --- */}
+                {!['COMPLETED', 'CANCELLED'].includes(selectedAppointment.status) && (
+                  <View style={{ gap: 12 }}>
+                    
+                    {/* 1. Mark as Completed */}
+                    <TouchableOpacity style={[styles.actionButton, { backgroundColor: '#D1FAE5', borderColor: '#16A34A', borderWidth: 1 }]} 
+                      onPress={handleMarkCompleted} disabled={isProcessing}>
+                      <Ionicons name="checkmark-circle" size={20} color="#16A34A" />
+                      <Text style={[styles.actionButtonText, { color: '#166534' }]}>Mark as Completed</Text>
                     </TouchableOpacity>
+
+                    <View style={styles.actionButtons}>
+                      {/* Reschedule */}
+                      <TouchableOpacity style={styles.actionButton} onPress={() => { setShowActionModal(false); setShowRescheduleModal(true); }}>
+                        <Ionicons name="calendar" size={20} color="#0A7B6E" /><Text style={styles.actionButtonText}>Reschedule</Text>
+                      </TouchableOpacity>
+                      
+                      {/* No Show (Quick Cancel) */}
+                      <TouchableOpacity style={[styles.actionButton, { backgroundColor: '#F3F4F6' }]} onPress={handleMarkNoShow} disabled={isProcessing}>
+                        <Ionicons name="eye-off" size={20} color="#6B7280" />
+                        <Text style={[styles.actionButtonText, { color: '#4B5563' }]}>No Show</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Cancel (Custom Reason) */}
                     <TouchableOpacity style={[styles.actionButton, styles.cancelBtn]} onPress={() => { setShowActionModal(false); setShowCancelModal(true); }}>
-                      <Ionicons name="close-circle" size={20} color="#DC2626" /><Text style={[styles.actionButtonText, { color: '#DC2626' }]}>Cancel</Text>
+                      <Ionicons name="close-circle" size={20} color="#DC2626" /><Text style={[styles.actionButtonText, { color: '#DC2626' }]}>Cancel Appointment</Text>
                     </TouchableOpacity>
                   </View>
                 )}
+                {/* ----------------------------- */}
               </>
             )}
           </View>

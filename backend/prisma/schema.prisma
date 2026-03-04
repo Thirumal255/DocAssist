@@ -93,7 +93,7 @@ model Appointment {
   doctorId        String
   doctor          User              @relation(fields: [doctorId], references: [id])
   scheduledAt     DateTime
-  status          AppointmentStatus @default(scheduled)
+  status          AppointmentStatus @default(SCHEDULED)
   type            AppointmentType   @default(new_visit)
   chiefComplaint  String?
   notes           String?
@@ -109,12 +109,9 @@ model Appointment {
 }
 
 enum AppointmentStatus {
-  scheduled
-  checked_in
-  consulting
-  completed
-  cancelled
-  no_show
+  SCHEDULED
+  COMPLETED
+  CANCELLED
 }
 
 enum AppointmentType {

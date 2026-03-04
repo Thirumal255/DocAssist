@@ -5,6 +5,7 @@ import { authMiddleware, AuthRequest } from '../middleware/auth';
 const router = Router();
 const prisma = new PrismaClient();
 
+// GET / - List all appointments
 router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { date, doctorId } = req.query;
@@ -42,6 +43,7 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   }
 });
 
+// GET /today - Get today's appointments
 router.get('/today', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const user = req.user!;
@@ -71,6 +73,7 @@ router.get('/today', authMiddleware, async (req: AuthRequest, res: Response) => 
   }
 });
 
+// GET /stats - Dashboard stats
 router.get('/stats', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const user = req.user!;
@@ -89,7 +92,8 @@ router.get('/stats', authMiddleware, async (req: AuthRequest, res: Response) => 
         where: { ...whereBase, scheduledAt: { gte: today, lt: tomorrow } }
       }),
       prisma.appointment.count({
-        where: { ...whereBase, status: 'scheduled', scheduledAt: { gte: today } }
+        // FIX: Use uppercase 'SCHEDULED' to match Enum
+        where: { ...whereBase, status: 'SCHEDULED', scheduledAt: { gte: today } }
       }),
       user.role === 'doctor'
         ? prisma.patient.count({
@@ -110,6 +114,7 @@ router.get('/stats', authMiddleware, async (req: AuthRequest, res: Response) => 
   }
 });
 
+// POST / - Create Appointment
 router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { patientId, doctorId, scheduledAt, type, chiefComplaint, notes } = req.body;
@@ -126,7 +131,8 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
         type: type || 'new_visit',
         chiefComplaint,
         notes,
-        status: 'scheduled'
+        // FIX: Use uppercase 'SCHEDULED'
+        status: 'SCHEDULED'
       },
       include: {
         patient: { select: { id: true, name: true, phone: true } },
@@ -141,6 +147,29 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   }
 });
 
+// PATCH /:id/status - Update Status (Completed, No Show, etc.)
+// This was missing and needed for the "Mark Completed" button
+router.patch('/:id/status', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!status) return res.status(400).json({ error: 'Status is required' });
+
+    // Validate status against allowed Enum values if strict, but Prisma will throw if invalid anyway
+    const appointment = await prisma.appointment.update({
+      where: { id },
+      data: { status } // Expects "COMPLETED", "NO_SHOW", etc.
+    });
+
+    res.json(appointment);
+  } catch (error) {
+    console.error('Error updating status:', error);
+    res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+
+// PUT /:id - Generic Update
 router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -166,6 +195,7 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   }
 });
 
+// POST /:id/cancel - Cancel Appointment
 router.post('/:id/cancel', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -173,7 +203,8 @@ router.post('/:id/cancel', authMiddleware, async (req: AuthRequest, res: Respons
 
     const appointment = await prisma.appointment.update({
       where: { id },
-      data: { status: 'cancelled', cancelReason: reason }
+      // FIX: Use uppercase 'CANCELLED'
+      data: { status: 'CANCELLED', cancelReason: reason }
     });
 
     res.json(appointment);
@@ -183,6 +214,7 @@ router.post('/:id/cancel', authMiddleware, async (req: AuthRequest, res: Respons
   }
 });
 
+// POST /:id/reschedule - Reschedule Appointment
 router.post('/:id/reschedule', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -202,7 +234,9 @@ router.post('/:id/reschedule', authMiddleware, async (req: AuthRequest, res: Res
       data: {
         scheduledAt: new Date(newScheduledAt),
         rescheduledFrom: current.scheduledAt,
-        notes: reason ? `Rescheduled: ${reason}` : current.notes
+        notes: reason ? `Rescheduled: ${reason}` : current.notes,
+        // Optional: Reset status to SCHEDULED if rescheduling a cancelled/missed appt
+        status: 'SCHEDULED' 
       }
     });
 

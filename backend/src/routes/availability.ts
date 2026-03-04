@@ -97,7 +97,7 @@ router.get('/:doctorId/slots', authMiddleware, async (req: AuthRequest, res: Res
           gte: startOfDay,
           lte: endOfDay
         },
-        status: { notIn: ['cancelled', 'no_show'] },
+        status: { notIn: ['CANCELLED'] },
         ...(excludeAppointmentId ? { id: { not: excludeAppointmentId as string } } : {})
       }
     });
