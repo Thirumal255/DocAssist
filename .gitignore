@@ -9,3 +9,5 @@ backend/node_modules/
 mobile/node_modules/
 mobile/bkp.env
 backend/bkp.env
+mobile/.env
+backend/.env
