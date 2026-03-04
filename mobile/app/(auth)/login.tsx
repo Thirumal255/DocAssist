@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, BorderRadius, Typography, Spacing, Shadows, API_URL } from '../../constants';
 import { Button, Input } from '../../components';
 import { useAuthStore } from '../../store';
+import { log } from '../../utils/logger'; //  Import logger utility
 
 type Role = 'doctor' | 'admin';
 
@@ -30,6 +31,7 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     if (!validate()) return;
     setIsLoading(true);
+    log.info('Login', `Attempting login for ${email}`); // Log the login attempt
     try {
       const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
@@ -37,14 +39,25 @@ export default function LoginScreen() {
         body: JSON.stringify({ email, password }),
       });
       const result = await response.json();
+      log.debug('Login', 'Server response received', result); // Log full response body
       if (!response.ok) {
+        log.warn('Login', `Server rejected login: ${result.error}`); // Log the reason for failure
         Alert.alert('Login Failed', result.error || 'Invalid credentials');
         return;
       }
+
       login(result.data.user, result.data.token);
+      log.info('Login', 'Auth state updated, navigating to dashboard');
+
+      if (!result.data || !result.data.user) {
+      log.error('Login', 'Success response missing user data object', result);
+      Alert.alert('Error', 'Invalid server response structure');
+      return;
+    }
       router.replace('/(app)/dashboard');
     } catch (error) {
       console.error('Login error:', error);
+      log.error('Login', 'Network or Fetch Error', error);
       Alert.alert('Connection Error', 'Cannot connect to server. Make sure backend is running and check your API URL in .env file.');
     } finally {
       setIsLoading(false);

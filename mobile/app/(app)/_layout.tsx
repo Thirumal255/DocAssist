@@ -1,4 +1,4 @@
-import { Tabs } from 'expo-router';
+import { Tabs, router } from 'expo-router'; // Added 'router' import
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store';
 
@@ -48,6 +48,8 @@ export default function AppLayout() {
           ),
         }}
       />
+      
+      {/* UPDATED PATIENTS TAB */}
       <Tabs.Screen
         name="patients"
         options={{
@@ -55,8 +57,16 @@ export default function AppLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="people" size={size} color={color} />
           ),
+          // This listener forces the tab to reset to the main list every time it's clicked
+          listeners: {
+            tabPress: (e) => {
+              e.preventDefault(); // Stop default behavior (preserving history)
+              router.replace('/(app)/patients'); // Reset to the list view
+            },
+          },
         }}
       />
+
       <Tabs.Screen
         name="records"
         options={{

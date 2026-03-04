@@ -75,21 +75,27 @@ export default function AppointmentsScreen() {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
-  // RESET STATE when tab comes into focus
+  // --- FIX START: Correctly reset filters and reload data on focus ---
   useFocusEffect(
     useCallback(() => {
-      log.screen(MODULE, 'focus - resetting state');
-      setSelectedDate(new Date());
+      log.screen(MODULE, 'focus - resetting filters');
+      
+      const today = new Date(); // Use this explicit date instance
+      
+      setSelectedDate(today);
       setSelectedDoctor('all');
       setSelectedAppointment(null);
-      setShowActionModal(false);
-      setShowCancelModal(false);
-      setShowRescheduleModal(false);
+      closeAllModals();
       
+      // Load fresh data using the explicit 'today' variable
+      // Using 'selectedDate' state here would be stale (referencing previous state)
       loadDoctors();
-      loadAppointmentsForDate(new Date(), 'all');
+      loadAppointmentsForDate(today, 'all');
+      
+      return () => {};
     }, [])
   );
+  // --- FIX END ---
 
   useEffect(() => {
     if (showRescheduleModal && selectedAppointment) {

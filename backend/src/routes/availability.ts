@@ -5,6 +5,37 @@ import { authMiddleware, AuthRequest } from '../middleware/auth';
 const router = Router();
 const prisma = new PrismaClient();
 
+// --- 1. SPECIFIC ROUTES (Must come BEFORE /:doctorId) ---
+
+// Get all doctors with their availability (For Admin Dashboard)
+router.get('/doctors', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const doctors = await prisma.user.findMany({
+      where: { role: 'doctor', isActive: true },
+      select: {
+        id: true,
+        name: true,
+        specialty: true,
+        phone: true,
+        // Include availability so the frontend can display the summary
+        availability: {
+          where: { isActive: true },
+          orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }]
+        }
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    res.json({ success: true, data: doctors });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Failed to fetch doctors' });
+  }
+});
+
+// --- 2. DYNAMIC ROUTES ---
+
+// Get specific doctor's availability
 router.get('/:doctorId', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { doctorId } = req.params;
@@ -14,13 +45,14 @@ router.get('/:doctorId', authMiddleware, async (req: AuthRequest, res: Response)
       orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }]
     });
 
-    res.json(availability);
+    res.json({ success: true, data: availability });
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Failed to fetch availability' });
   }
 });
 
+// Get calculated slots for a specific date (Booking Logic)
 router.get('/:doctorId/slots', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { doctorId } = req.params;
@@ -33,119 +65,120 @@ router.get('/:doctorId/slots', authMiddleware, async (req: AuthRequest, res: Res
     const requestedDate = new Date(date as string);
     const dayOfWeek = requestedDate.getDay();
 
+    // 1. Get Doctor's Schedule for this day
     const availabilitySlots = await prisma.doctorAvailability.findMany({
       where: { doctorId, dayOfWeek, isActive: true },
       orderBy: { startTime: 'asc' }
     });
 
     if (availabilitySlots.length === 0) {
-      return res.json({ available: false, message: 'Doctor is not available on this day', slots: [] });
+      return res.json({ 
+        success: true, 
+        data: {
+          available: false, 
+          message: 'Doctor is not available on this day', 
+          slots: [] 
+        }
+      });
     }
 
+    // 2. Get Existing Appointments
+    // Define start and end of the requested day
     const startOfDay = new Date(requestedDate);
     startOfDay.setHours(0, 0, 0, 0);
+    
     const endOfDay = new Date(requestedDate);
     endOfDay.setHours(23, 59, 59, 999);
 
-    const bookedWhere: any = {
-      doctorId,
-      scheduledAt: { gte: startOfDay, lte: endOfDay },
-      status: { notIn: ['cancelled'] }
-    };
-
-    if (excludeAppointmentId) {
-      bookedWhere.id = { not: excludeAppointmentId as string };
-    }
-
-    const bookedAppointments = await prisma.appointment.findMany({
-      where: bookedWhere,
-      select: { scheduledAt: true }
+    const existingAppointments = await prisma.appointment.findMany({
+      where: {
+        doctorId,
+        scheduledAt: {
+          gte: startOfDay,
+          lte: endOfDay
+        },
+        status: { notIn: ['cancelled', 'no_show'] },
+        ...(excludeAppointmentId ? { id: { not: excludeAppointmentId as string } } : {})
+      }
     });
 
-    const bookedTimes = new Set(
-      bookedAppointments.map(apt => {
-        const d = new Date(apt.scheduledAt);
-        return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-      })
-    );
+    // 3. Generate 15-min Time Slots
+    const generatedSlots: any[] = [];
+    const bookedTimes = new Set(existingAppointments.map(app => 
+      new Date(app.scheduledAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+    ));
 
-    const slots: { time: string; available: boolean }[] = [];
+    // Current time for "past slot" validation
     const now = new Date();
-    const isToday = requestedDate.toDateString() === now.toDateString();
+    const isToday = startOfDay.toDateString() === now.toDateString();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-    for (const avail of availabilitySlots) {
-      const [startH, startM] = avail.startTime.split(':').map(Number);
-      const [endH, endM] = avail.endTime.split(':').map(Number);
-      const slotDuration = avail.slotDuration || 15;
+    for (const schedule of availabilitySlots) {
+      const [startHour, startMin] = schedule.startTime.split(':').map(Number);
+      const [endHour, endMin] = schedule.endTime.split(':').map(Number);
+      
+      let currentSlotTime = startHour * 60 + startMin;
+      const endTimeMinutes = endHour * 60 + endMin;
+      
+      // Default to 15 mins if not set
+      const duration = schedule.slotDuration || 15; 
 
-      let currentMinutes = startH * 60 + startM;
-      const endMinutes = endH * 60 + endM;
+      while (currentSlotTime + duration <= endTimeMinutes) {
+        // Format minutes to HH:MM
+        const h = Math.floor(currentSlotTime / 60);
+        const m = currentSlotTime % 60;
+        const timeString = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 
-      while (currentMinutes < endMinutes) {
-        const hours = Math.floor(currentMinutes / 60);
-        const mins = currentMinutes % 60;
-        const timeStr = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+        let isAvailable = !bookedTimes.has(timeString);
 
-        let isAvailable = !bookedTimes.has(timeStr);
-
-        if (isToday && isAvailable) {
-          const slotTime = new Date(requestedDate);
-          slotTime.setHours(hours, mins, 0, 0);
-          const cutoffTime = new Date(now.getTime() + 15 * 60 * 1000);
-          if (slotTime <= cutoffTime) {
-            isAvailable = false;
-          }
+        // Filter past slots if today
+        if (isToday && currentSlotTime < currentMinutes) {
+          isAvailable = false;
         }
 
-        slots.push({ time: timeStr, available: isAvailable });
-        currentMinutes += slotDuration;
+        if (isAvailable) {
+          generatedSlots.push({
+            time: timeString,
+            available: true,
+            slotDuration: duration
+          });
+        }
+
+        currentSlotTime += duration;
       }
     }
 
     res.json({
-      available: true,
-      periods: availabilitySlots.map(a => ({ startTime: a.startTime, endTime: a.endTime })),
-      slots
+      success: true,
+      data: {
+        available: generatedSlots.length > 0,
+        date: date,
+        dayName: requestedDate.toLocaleDateString('en-US', { weekday: 'long' }),
+        slots: generatedSlots
+      }
     });
+
   } catch (error) {
     console.error('Error:', error);
-    res.status(500).json({ error: 'Failed to fetch slots' });
+    res.status(500).json({ error: 'Failed to generate slots' });
   }
 });
 
-router.post('/:doctorId', authMiddleware, async (req: AuthRequest, res: Response) => {
+// Replace all availability (Admin Action)
+router.put('/:doctorId/replace', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { doctorId } = req.params;
-    const { dayOfWeek, startTime, endTime, slotDuration } = req.body;
+    const { slots } = req.body; // Expects array of availability objects
     const user = req.user!;
 
     if (user.role !== 'admin' && user.id !== doctorId) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const availability = await prisma.doctorAvailability.create({
-      data: { doctorId, dayOfWeek, startTime, endTime, slotDuration: slotDuration || 15 }
-    });
-
-    res.status(201).json(availability);
-  } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: 'Failed to create availability' });
-  }
-});
-
-router.post('/:doctorId/replace-all', authMiddleware, async (req: AuthRequest, res: Response) => {
-  try {
-    const { doctorId } = req.params;
-    const { slots } = req.body;
-    const user = req.user!;
-
-    if (user.role !== 'admin' && user.id !== doctorId) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
+    // 1. Delete existing availability
     await prisma.doctorAvailability.deleteMany({ where: { doctorId } });
 
+    // 2. Create new slots
     if (slots && slots.length > 0) {
       await prisma.doctorAvailability.createMany({
         data: slots.map((slot: any) => ({
@@ -159,15 +192,16 @@ router.post('/:doctorId/replace-all', authMiddleware, async (req: AuthRequest, r
       });
     }
 
+    // 3. Return updated list
     const newAvailability = await prisma.doctorAvailability.findMany({
       where: { doctorId },
       orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }]
     });
 
-    res.json(newAvailability);
+    res.json({ success: true, data: newAvailability });
   } catch (error) {
     console.error('Error:', error);
-    res.status(500).json({ error: 'Failed to replace availability' });
+    res.status(500).json({ error: 'Failed to update availability' });
   }
 });
 

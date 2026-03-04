@@ -139,31 +139,6 @@ async function main() {
 
   console.log('✅ Patients created:', patient1.name, ',', patient2.name, ',', patient3.name);
 
-  // Create medicines
-  await prisma.medicine.deleteMany({});
-  
-  const medicines = [
-    { brandName: 'Metformin', genericName: 'Metformin HCl', strength: '500mg', form: 'tablet', manufacturer: 'Cipla', mrp: 45.00 },
-    { brandName: 'Glycomet', genericName: 'Metformin HCl', strength: '1000mg', form: 'tablet', manufacturer: 'USV', mrp: 85.00 },
-    { brandName: 'Amlodipine', genericName: 'Amlodipine Besylate', strength: '5mg', form: 'tablet', manufacturer: 'Sun Pharma', mrp: 35.00 },
-    { brandName: 'Stamlo', genericName: 'Amlodipine Besylate', strength: '5mg', form: 'tablet', manufacturer: "Dr. Reddy's", mrp: 42.00 },
-    { brandName: 'Telmisartan', genericName: 'Telmisartan', strength: '40mg', form: 'tablet', manufacturer: 'Cipla', mrp: 65.00 },
-    { brandName: 'Aspirin', genericName: 'Acetylsalicylic Acid', strength: '75mg', form: 'tablet', manufacturer: 'Bayer', mrp: 25.00 },
-    { brandName: 'Ecosprin', genericName: 'Acetylsalicylic Acid', strength: '75mg', form: 'tablet', manufacturer: 'USV', mrp: 22.00 },
-    { brandName: 'Atorvastatin', genericName: 'Atorvastatin Calcium', strength: '10mg', form: 'tablet', manufacturer: 'Ranbaxy', mrp: 55.00 },
-    { brandName: 'Paracetamol', genericName: 'Paracetamol', strength: '500mg', form: 'tablet', manufacturer: 'GSK', mrp: 15.00 },
-    { brandName: 'Dolo', genericName: 'Paracetamol', strength: '650mg', form: 'tablet', manufacturer: 'Micro Labs', mrp: 30.00 },
-    { brandName: 'Azithromycin', genericName: 'Azithromycin', strength: '500mg', form: 'tablet', manufacturer: 'Cipla', mrp: 85.00 },
-    { brandName: 'Cetirizine', genericName: 'Cetirizine HCl', strength: '10mg', form: 'tablet', manufacturer: "Dr. Reddy's", mrp: 18.00 },
-    { brandName: 'Ramipril', genericName: 'Ramipril', strength: '5mg', form: 'tablet', manufacturer: 'Sanofi', mrp: 75.00 },
-    { brandName: 'Omeprazole', genericName: 'Omeprazole', strength: '20mg', form: 'capsule', manufacturer: 'Sun Pharma', mrp: 45.00 },
-    { brandName: 'Pantoprazole', genericName: 'Pantoprazole', strength: '40mg', form: 'tablet', manufacturer: 'Alkem', mrp: 55.00 },
-    { brandName: 'Montelukast', genericName: 'Montelukast Sodium', strength: '10mg', form: 'tablet', manufacturer: 'Cipla', mrp: 120.00 },
-  ];
-
-  await prisma.medicine.createMany({ data: medicines });
-  console.log('✅ Medicines seeded:', medicines.length, 'items');
-
   console.log('\n🎉 Seed completed!\n');
   console.log('═══════════════════════════════════════════════════════════');
   console.log('  LOGIN CREDENTIALS');

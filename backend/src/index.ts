@@ -13,12 +13,14 @@ import availabilityRoutes from './routes/availability';
 import usersRoutes from './routes/users';
 import visitsRoutes from './routes/visits';
 import aiRoutes from './routes/ai';
+import { apiLoggerMiddleware, printRoutes } from './utils/logger'; // Import logger utilities
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+app.use(apiLoggerMiddleware); // Log all API traffic
 
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
@@ -50,8 +52,10 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
+
 app.listen(PORT, () => {
   console.log(`\n🚀 DocAssist API running on http://localhost:${PORT}\n`);
+  printRoutes(app); // This will print all active routes so you can verify paths
 });
 
 export default app;

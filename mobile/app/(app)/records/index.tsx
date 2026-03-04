@@ -40,14 +40,16 @@ export default function RecordsScreen() {
   useFocusEffect(
     useCallback(() => {
       log.screen(MODULE, 'focus - resetting state');
-      setSelectedDoctor('all');
+      // FIX: Default to current user ID if doctor
+      const initialDoctor = isDoctor && user ? user.id : 'all';
+      setSelectedDoctor(initialDoctor);
       setSelectedPatient('all');
       setIsLoading(true);
-      loadData();
-    }, [])
+      loadData(initialDoctor);
+    }, [isDoctor, user])
   );
 
-  const loadData = async () => {
+  const loadData = async (initialDoctor: string = 'all') => {
     try {
       // Load filters
       if (isAdmin) {
@@ -59,8 +61,8 @@ export default function RecordsScreen() {
       const patientsResult = await patientsApi.getAll();
       if (patientsResult.data) setPatients(patientsResult.data.slice(0, 15));
       
-      // Load prescriptions
-      await loadPrescriptions('all', 'all');
+      // Load prescriptions with the correct initial filter
+      await loadPrescriptions(initialDoctor, 'all');
     } catch (error) {
       log.error(MODULE, 'Failed to load data', error);
       setIsLoading(false);

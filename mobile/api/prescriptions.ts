@@ -1,4 +1,4 @@
-import { api } from './client';
+import { apiClient } from './client';
 import { Prescription, AISuggestion } from '../types';
 import { log } from '../utils/logger';
 
@@ -6,8 +6,14 @@ const MODULE = 'PrescriptionsAPI';
 
 export interface CreatePrescriptionData {
   patientId: string;
-  visitId?: string;  // Optional - backend will create visit if not provided
+  visitId?: string;
   diagnosis: string;
+  vitals?: {
+    bp?: string;
+    weight?: number;
+    pulse?: number;
+    temperature?: number;
+  };
   items: {
     medicineName: string;
     genericName?: string;
@@ -21,46 +27,50 @@ export interface CreatePrescriptionData {
 }
 
 export const prescriptionsApi = {
-  // Create new prescription
+  // --- ADDED THIS METHOD TO FIX CRASH ---
+  getAll: async (params?: { doctorId?: string; patientId?: string }) => {
+    log.info(MODULE, 'Fetching all prescriptions', params);
+    const queryParams = new URLSearchParams();
+    if (params?.doctorId && params.doctorId !== 'all') queryParams.append('doctorId', params.doctorId);
+    if (params?.patientId && params.patientId !== 'all') queryParams.append('patientId', params.patientId);
+    
+    const query = queryParams.toString();
+    return apiClient.get<Prescription[]>(`/prescriptions${query ? `?${query}` : ''}`);
+  },
+
   create: async (data: CreatePrescriptionData) => {
     log.info(MODULE, 'Creating prescription', {
       patientId: data.patientId,
       itemCount: data.items.length,
-      hasVisitId: !!data.visitId
     });
-    return api.post<Prescription>('/prescriptions', data);
+    return apiClient.post<Prescription>('/prescriptions', data);
   },
 
-  // Get prescription by ID
   getById: async (id: string) => {
     log.info(MODULE, `Fetching prescription: ${id}`);
-    return api.get<Prescription>(`/prescriptions/${id}`);
+    return apiClient.get<Prescription>(`/prescriptions/${id}`);
   },
 
-  // Get prescriptions by patient
   getByPatient: async (patientId: string) => {
     log.info(MODULE, `Fetching prescriptions for patient: ${patientId}`);
-    return api.get<Prescription[]>(`/prescriptions/patient/${patientId}`);
+    return apiClient.get<Prescription[]>(`/prescriptions/patient/${patientId}`);
   },
 
-  // Get prescription PDF URL
   getPdf: async (id: string) => {
     log.info(MODULE, `Generating PDF for prescription: ${id}`);
-    return api.get<{ url: string }>(`/prescriptions/${id}/pdf`);
+    return apiClient.get<{ url: string }>(`/prescriptions/${id}/pdf`);
   },
 };
 
 export const aiApi = {
-  // Get AI suggestions for prescription
   getSuggestions: async (diagnosis: string, patientId: string) => {
-    log.info(MODULE, 'Requesting AI suggestions', { diagnosisLength: diagnosis.length, patientId });
-    return api.post<AISuggestion>('/ai/suggest', { diagnosis, patientId });
+    log.info(MODULE, 'Requesting AI suggestions');
+    return apiClient.post<AISuggestion>('/ai/suggest', { diagnosis, patientId });
   },
 
-  // Check drug interactions
   checkInteractions: async (medicines: string[], patientAllergies: string[]) => {
-    log.info(MODULE, 'Checking drug interactions', { medicineCount: medicines.length });
-    return api.post<{ warnings: string[] }>('/ai/drug-interaction', {
+    log.info(MODULE, 'Checking drug interactions');
+    return apiClient.post<{ warnings: string[] }>('/ai/drug-interaction', {
       medicines,
       patientAllergies,
     });

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput } from 'react-native';
-import { router } from 'expo-router';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput, BackHandler } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { availabilityApi, usersApi, AvailabilitySlot } from '../../../api';
@@ -51,10 +51,33 @@ export default function ManageAvailabilityScreen() {
   });
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
 
-  useEffect(() => {
-    log.screen(MODULE, 'mount');
-    loadDoctors();
-  }, []);
+  // FIX 1: Reset state when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      setSelectedDoctor(null); 
+      loadDoctors();
+      return () => {};
+    }, [])
+  );
+
+  // FIX 2: Handle Hardware Back Button (Android) - CORRECTED
+  useFocusEffect(
+    React.useCallback(() => {
+      const onBackPress = () => {
+        if (selectedDoctor) {
+          setSelectedDoctor(null); // Go back to list view
+          return true; // Prevent default behavior (exiting screen)
+        }
+        return false; // Let default behavior happen (exit screen)
+      };
+
+      // The modern way to add listener
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      
+      // Cleanup using subscription.remove()
+      return () => subscription.remove();
+    }, [selectedDoctor])
+  );
 
   const loadDoctors = async () => {
     try {
@@ -177,9 +200,19 @@ export default function ManageAvailabilityScreen() {
       
       if (result.data) {
         log.info(MODULE, `Saved ${slots.length} slots`);
-        Alert.alert('Success', `Availability saved for ${selectedDoctor.name}`);
-        // Reload doctors to get updated availability
-        loadDoctors();
+        Alert.alert(
+          'Success', 
+          `Availability saved for ${selectedDoctor.name}`,
+          [
+            { 
+              text: 'OK', 
+              onPress: () => {
+                 setSelectedDoctor(null);
+                 loadDoctors();
+              } 
+            }
+          ]
+        );
       } else {
         Alert.alert('Error', result.error || 'Failed to save');
       }
@@ -200,6 +233,14 @@ export default function ManageAvailabilityScreen() {
     return dayNames.join(', ');
   };
 
+  const handleBack = () => {
+    if (selectedDoctor) {
+      setSelectedDoctor(null); 
+    } else {
+      router.back();
+    }
+  };
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -213,15 +254,16 @@ export default function ManageAvailabilityScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
           <Ionicons name="arrow-back" size={20} color="#0D1B2A" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Manage Availability</Text>
+        <Text style={styles.headerTitle}>
+          {selectedDoctor ? selectedDoctor.name : 'Manage Availability'}
+        </Text>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Doctor Selection */}
         {!selectedDoctor ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Select Doctor</Text>
@@ -247,7 +289,6 @@ export default function ManageAvailabilityScreen() {
           </View>
         ) : (
           <>
-            {/* Selected Doctor Header */}
             <TouchableOpacity style={styles.selectedDoctorCard} onPress={() => setSelectedDoctor(null)}>
               <View style={styles.doctorIcon}>
                 <Ionicons name="medical" size={22} color="#FFFFFF" />
@@ -266,7 +307,6 @@ export default function ManageAvailabilityScreen() {
               Each appointment slot is 15 minutes.
             </Text>
 
-            {/* Day Schedule Cards */}
             {DAYS_OF_WEEK.map(day => {
               const schedule = schedules[day.id];
               const isExpanded = expandedDay === day.id;
@@ -344,7 +384,6 @@ export default function ManageAvailabilityScreen() {
               );
             })}
 
-            {/* Save Button */}
             <TouchableOpacity
               style={[styles.saveBtn, isSaving && styles.saveBtnDisabled]}
               onPress={handleSave}

@@ -5,28 +5,34 @@ import { authMiddleware, AuthRequest } from '../middleware/auth';
 const router = Router();
 const prisma = new PrismaClient();
 
+// GET / - Hybrid List (My Patients vs Global Search)
 router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { search } = req.query;
     const user = req.user!;
 
     let where: any = {};
+    const isSearching = search && (search as string).length >= 2;
 
-    if (search && (search as string).length >= 2) {
+    // 1. GLOBAL SEARCH MODE
+    // If searching, ignore doctor filters to allow finding ANY patient
+    if (isSearching) {
       where.OR = [
         { name: { contains: search as string, mode: 'insensitive' } },
         { phone: { contains: search as string } }
       ];
-    }
-
-    if (user.role === 'doctor') {
+    } 
+    
+    // 2. DEFAULT MODE (My Patients)
+    // If not searching, restrict to patients this doctor has seen or will see
+    else if (user.role === 'doctor') {
       const doctorFilter = {
         OR: [
-          { appointments: { some: { doctorId: user.id } } },
-          { visits: { some: { doctorId: user.id } } }
+          { appointments: { some: { doctorId: user.id } } }, // Has appointment
+          { visits: { some: { doctorId: user.id } } }        // Has visit history
         ]
       };
-      where = where.OR ? { AND: [where, doctorFilter] } : doctorFilter;
+      where = doctorFilter;
     }
 
     const patients = await prisma.patient.findMany({
@@ -64,10 +70,10 @@ router.get('/:id/history', authMiddleware, async (req: AuthRequest, res: Respons
     const user = req.user!;
 
     const visitWhere: any = { patientId: id };
-    if (user.role === 'doctor') {
-      visitWhere.doctorId = user.id;
-    }
-
+    
+    // Doctors generally see full history, but you can restrict if strict privacy needed
+    // Currently allowing full history access for better diagnosis
+    
     const visits = await prisma.visit.findMany({
       where: visitWhere,
       include: {

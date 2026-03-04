@@ -14,4 +14,9 @@ export const medicinesApi = {
   getById: async (id: string) => {
     return api.get<Medicine>(`/medicines/${id}`);
   },
+
+  // --- NEW: Create medicine on the fly ---
+  create: async (name: string) => {
+    return api.post<Medicine>('/medicines', { name });
+  }
 };

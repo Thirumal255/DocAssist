@@ -196,16 +196,20 @@ model PrescriptionItem {
 }
 
 // Medicine database
-model Medicine {
-  id           String   @id @default(cuid())
-  brandName    String
-  genericName  String
-  strength     String
-  form         String
-  manufacturer String?
-  mrp          Float?
-  category     String?
-  createdAt    DateTime @default(now())
 
-  @@map("medicines")
+
+model Medicine {
+  id               String  @id @map("id")
+  name             String  @map("name")
+  // Maps Prisma 'manufacturer' to DB column 'manufacturer_name'
+  manufacturer     String? @map("manufacturer_name") 
+  packSizeLabel    String? @map("pack_size_label")
+  saltComposition  String? @map("salt_composition")
+  medicineDesc     String? @map("medicine_desc")
+  sideEffects      String? @map("side_effects")
+  drugInteractions Json?   @map("drug_interactions")
+
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@map("medicines") // The actual table name in Postgres
 }
