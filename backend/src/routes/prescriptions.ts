@@ -1,6 +1,8 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import fs from 'fs';
+import path from 'path';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -46,21 +48,60 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
 });
 
 // Get Single Prescription
+// GET /:id - Get single prescription
 router.get('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const prescription = await prisma.prescription.findUnique({
       where: { id },
       include: {
-        visit: { include: { patient: true, doctor: true } },
-        items: true
+        items: true,
+        patient: true,
+        doctor: {
+          include: {
+            template: true
+          }
+        }
       }
     });
 
-    if (!prescription) return res.status(404).json({ error: 'Prescription not found' });
-    res.json({ success: true, data: prescription });
+    if (!prescription) {
+      return res.status(404).json({ error: 'Prescription not found' });
+    }
+
+    // Helper to convert local file to Base64
+    const getBase64 = (relativePath: string) => {
+      try {
+        // Since we moved 'uploads' to backend/uploads, path.join(process.cwd(), 'uploads', filename)
+        // Note: logoUrl already contains '/uploads/filename.png', so we replace the leading slash
+        const filePath = path.join(process.cwd(), relativePath.startsWith('/') ? relativePath.substring(1) : relativePath);
+        
+        if (fs.existsSync(filePath)) {
+          const fileBuffer = fs.readFileSync(filePath);
+          const extension = path.extname(filePath).replace('.', '') || 'png';
+          return `data:image/${extension};base64,${fileBuffer.toString('base64')}`;
+        }
+      } catch (err) {
+        console.error(`Base64 conversion failed for ${relativePath}:`, err);
+      }
+      return null;
+    };
+
+    const doctor = prescription.doctor as any;
+    if (doctor?.template) {
+      // Convert Logo if exists
+      if (doctor.template.logoUrl) {
+        doctor.template.logoBase64 = getBase64(doctor.template.logoUrl);
+      }
+      // Convert Signature if exists
+      if (doctor.template.digitalSignatureUrl) {
+        doctor.template.sigBase64 = getBase64(doctor.template.digitalSignatureUrl);
+      }
+    }
+
+    res.json(prescription);
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error fetching prescription:', error);
     res.status(500).json({ error: 'Failed to fetch prescription' });
   }
 });

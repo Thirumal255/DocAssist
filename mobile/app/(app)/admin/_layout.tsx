@@ -8,6 +8,9 @@ export default function AdminLayout() {
       <Stack.Screen name="edit-user" />
       <Stack.Screen name="availability" />
       <Stack.Screen name="manage-availability" />
+      {/* THESE TWO LINES MUST BE HERE */}
+      <Stack.Screen name="templates" /> 
+      <Stack.Screen name="manage-template" />
     </Stack>
   );
 }

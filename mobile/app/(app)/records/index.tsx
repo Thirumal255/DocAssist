@@ -109,7 +109,7 @@ export default function RecordsScreen() {
     return (
       <TouchableOpacity 
         style={styles.card}
-        onPress={() => item.visit?.patient?.id && router.push(`/(app)/patients/${item.visit.patient.id}`)}
+        onPress={() => router.push(`/(app)/prescriptions/${item.id}`)}
       >
         <View style={styles.rxIcon}>
           <Ionicons name="document-text" size={20} color="#0A7B6E" />
@@ -136,6 +136,7 @@ export default function RecordsScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Records</Text>
+        
         {isDoctor && (
           <View style={styles.headerBadge}>
             <Text style={styles.headerBadgeText}>My Patients</Text>

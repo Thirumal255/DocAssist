@@ -71,6 +71,7 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
         registrationNo: true,
         createdAt: true,
         isActive: true,
+        templateId: true, // <-- ADDED: So admin list knows about templates
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -98,6 +99,7 @@ router.get('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
         registrationNo: true,
         createdAt: true,
         isActive: true,
+        templateId: true, // <-- ADDED: So the edit screen loads the current template
       }
     });
 
@@ -121,7 +123,8 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Only admins can create users' });
     }
 
-    const { email, password, name, role, phone, specialty, registrationNo } = req.body;
+    // <-- ADDED templateId extraction here
+    const { email, password, name, role, phone, specialty, registrationNo, templateId } = req.body;
 
     if (!email || !password || !name || !role) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -143,6 +146,8 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
         phone,
         specialty: role === 'doctor' ? specialty : null,
         registrationNo: role === 'doctor' ? registrationNo : null,
+        // <-- ADDED proper template assignment
+        templateId: role === 'doctor' ? (templateId || null) : null,
         isActive: true,
       },
     });
@@ -164,7 +169,8 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
     }
 
     const { id } = req.params;
-    const { name, phone, specialty, registrationNo, isActive, password } = req.body;
+    // <-- ADDED templateId extraction here
+    const { name, phone, specialty, registrationNo, isActive, password, templateId } = req.body;
 
     const updateData: any = {
       name,
@@ -173,6 +179,11 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
       registrationNo,
       isActive,
     };
+
+    // <-- ADDED: Update template ID if it was sent
+    if (templateId !== undefined) {
+      updateData.templateId = templateId || null;
+    }
 
     if (password && password.trim() !== '') {
       updateData.password = await bcrypt.hash(password, 10);

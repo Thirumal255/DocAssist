@@ -5,7 +5,7 @@
 import { useAuthStore } from '../store/authStore'; 
 import { log } from '../utils/logger';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.50:3000';
 
 // Define the standard response structure
 interface ApiResponse<T> {
@@ -23,7 +23,7 @@ interface ApiResponse<T> {
 }
 
 class ApiClient {
-  private getHeaders(): HeadersInit {
+  private getHeaders(): Record<string, string> {
     // Access token directly from the store state
     const token = useAuthStore.getState().token;
     return {
@@ -40,15 +40,26 @@ class ApiClient {
     const method = options.method || 'GET';
     const url = `${API_URL}${endpoint}`;
     
-    log.debug('API', `→ ${method} ${endpoint}`, options.body ? JSON.parse(options.body as string) : undefined);
+    // Log properly without crashing if body is FormData
+    const isFormData = options.body instanceof FormData;
+    log.debug('API', `→ ${method} ${endpoint}`, isFormData ? 'FormData' : (options.body ? JSON.parse(options.body as string) : undefined));
 
     try {
+      // Merge headers
+      const finalHeaders: Record<string, string> = {
+        ...this.getHeaders(),
+        ...(options.headers as Record<string, string> || {}),
+      };
+
+      // CRITICAL FIX: If sending FormData, delete the Content-Type header.
+      // fetch() will automatically set it to 'multipart/form-data; boundary=...'
+      if (isFormData) {
+        delete finalHeaders['Content-Type'];
+      }
+
       const response = await fetch(url, {
         ...options,
-        headers: {
-          ...this.getHeaders(),
-          ...options.headers,
-        },
+        headers: finalHeaders,
       });
 
       const duration = Date.now() - startTime;
@@ -91,29 +102,35 @@ class ApiClient {
   }
 
   // HTTP Methods
-  async get<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, { method: 'GET' });
+  async get<T>(endpoint: string, customHeaders?: HeadersInit): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { method: 'GET', headers: customHeaders });
   }
 
-  async post<T>(endpoint: string, body: any): Promise<ApiResponse<T>> {
-    log.info('API', `POST ${endpoint}`, { bodyKeys: Object.keys(body) });
+  async post<T>(endpoint: string, body: any, customHeaders?: HeadersInit): Promise<ApiResponse<T>> {
+    const isFormData = body instanceof FormData;
+    log.info('API', `POST ${endpoint}`, isFormData ? { type: 'FormData' } : { bodyKeys: Object.keys(body) });
+    
     return this.request<T>(endpoint, {
       method: 'POST',
-      body: JSON.stringify(body),
+      body: isFormData ? body : JSON.stringify(body),
+      headers: customHeaders,
     });
   }
 
-  async put<T>(endpoint: string, body: any): Promise<ApiResponse<T>> {
-    log.info('API', `PUT ${endpoint}`, { bodyKeys: Object.keys(body) });
+  async put<T>(endpoint: string, body: any, customHeaders?: HeadersInit): Promise<ApiResponse<T>> {
+    const isFormData = body instanceof FormData;
+    log.info('API', `PUT ${endpoint}`, isFormData ? { type: 'FormData' } : { bodyKeys: Object.keys(body) });
+    
     return this.request<T>(endpoint, {
       method: 'PUT',
-      body: JSON.stringify(body),
+      body: isFormData ? body : JSON.stringify(body),
+      headers: customHeaders,
     });
   }
 
-  async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
+  async delete<T>(endpoint: string, customHeaders?: HeadersInit): Promise<ApiResponse<T>> {
     log.info('API', `DELETE ${endpoint}`);
-    return this.request<T>(endpoint, { method: 'DELETE' });
+    return this.request<T>(endpoint, { method: 'DELETE', headers: customHeaders });
   }
 }
 

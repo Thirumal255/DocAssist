@@ -24,6 +24,7 @@ export interface CreateUserData {
   phone?: string;
   specialty?: string;
   registrationNo?: string;
+  templateId?: string; // 👈 ADDED THIS
 }
 
 export interface UpdateUserData {
@@ -33,6 +34,7 @@ export interface UpdateUserData {
   registrationNo?: string;
   isActive?: boolean;
   password?: string;
+  templateId?: string; // 👈 ADDED THIS
 }
 
 export const usersApi = {

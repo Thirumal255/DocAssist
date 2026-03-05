@@ -296,9 +296,9 @@ export default function NewPrescriptionScreen() {
       const result = await prescriptionsApi.create(prescriptionData);
 
       if (result.data) {
-        Alert.alert('Success', 'Prescription saved successfully!', [
-          { text: 'OK', onPress: () => router.back() },
-        ]);
+        // Go directly to the Print/Share screen!
+        // We use .replace() so they don't accidentally swipe back to the form
+        router.replace(`/(app)/prescriptions/${result.data.id}`);
       } else {
         Alert.alert('Error', result.error || 'Failed to save prescription.');
       }

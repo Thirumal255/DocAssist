@@ -62,6 +62,18 @@ export default function SettingsScreen() {
       onPress: () => router.push('/(app)/admin/manage-availability'),
       role: 'admin',
     },
+
+    // --- ADDED THIS NEW TEMPLATE SECTION ---
+    {
+      id: 'templates',
+      title: 'Manage Templates',
+      subtitle: 'Branding, logos & prescription styles',
+      icon: 'color-palette',
+      iconBg: '#06B6D4', // A nice cyan color to stand out
+      onPress: () => router.push('/(app)/admin/templates/new'),
+      role: 'admin',
+    },
+    // ---------------------------------------
   ];
 
   const doctorMenuItems: MenuItem[] = [

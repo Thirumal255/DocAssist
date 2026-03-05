@@ -5,7 +5,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, BorderRadius, Typography, Spacing, Shadows } from '../../../constants';
 import { Card } from '../../../components';
-import { usersApi, User, CreateUserData } from '../../../api';
+import { usersApi, CreateUserData } from '../../../api';
+// --- ADDED TEMPLATES API ---
+import { templatesApi, PrescriptionTemplate } from '../../../api/templates'; 
 import { log } from '../../../utils/logger';
 
 const MODULE = 'AddEditUser';
@@ -16,6 +18,11 @@ export default function AddEditUserScreen() {
 
   const [isLoading, setIsLoading] = useState(isEditing);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // --- ADDED TEMPLATES STATE ---
+  const [templates, setTemplates] = useState<PrescriptionTemplate[]>([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -24,14 +31,32 @@ export default function AddEditUserScreen() {
     phone: '',
     specialty: '',
     registrationNo: '',
+    // --- ADDED TEMPLATE ID TO FORM ---
+    templateId: '', 
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    // Always load templates so the admin has options to pick from
+    loadTemplates();
     if (isEditing) {
       loadUser();
     }
   }, [id]);
+
+  // --- ADDED FUNCTION TO FETCH TEMPLATES ---
+  const loadTemplates = async () => {
+    try {
+      const result = await templatesApi.getAll();
+      if (result.data) {
+        setTemplates(result.data);
+      }
+    } catch (error) {
+      log.error(MODULE, 'Failed to load templates', error);
+    } finally {
+      setIsLoadingTemplates(false);
+    }
+  };
 
   const loadUser = async () => {
     log.info(MODULE, `Loading user: ${id}`);
@@ -42,11 +67,13 @@ export default function AddEditUserScreen() {
         setFormData({
           name: user.name,
           email: user.email,
-          password: '', // Don't load password
+          password: '', 
           role: user.role,
           phone: user.phone || '',
           specialty: user.specialty || '',
           registrationNo: user.registrationNo || '',
+          // Load existing template if they have one
+          templateId: user.templateId || '', 
         });
       }
     } catch (error) {
@@ -85,6 +112,8 @@ export default function AddEditUserScreen() {
           phone: formData.phone || undefined,
           specialty: formData.specialty || undefined,
           registrationNo: formData.registrationNo || undefined,
+          // Include template update
+          templateId: formData.templateId || undefined,
         };
         if (formData.password) {
           updateData.password = formData.password;
@@ -154,7 +183,7 @@ export default function AddEditUserScreen() {
               onChangeText={(text) => setFormData({ ...formData, email: text })}
               keyboardType="email-address"
               autoCapitalize="none"
-              editable={!isEditing} // Can't change email when editing
+              editable={!isEditing} 
             />
             {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
           </View>
@@ -226,6 +255,53 @@ export default function AddEditUserScreen() {
                 onChangeText={(text) => setFormData({ ...formData, registrationNo: text })}
               />
             </View>
+
+            {/* --- ADDED TEMPLATE SELECTION --- */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Prescription Template</Text>
+              {isLoadingTemplates ? (
+                <ActivityIndicator size="small" color={Colors.teal} style={{ alignSelf: 'flex-start' }} />
+              ) : templates.length === 0 ? (
+                <Text style={{ color: Colors.muted, fontSize: 13 }}>No templates created yet.</Text>
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -4 }}>
+                  {templates.map((template) => (
+                    <TouchableOpacity
+                      key={template.id}
+                      style={[
+                        {
+                          paddingHorizontal: 16,
+                          paddingVertical: 12,
+                          borderRadius: 8,
+                          borderWidth: 1,
+                          borderColor: Colors.border,
+                          marginHorizontal: 4,
+                          backgroundColor: Colors.background,
+                          alignItems: 'center',
+                          flexDirection: 'row',
+                          gap: 8,
+                        },
+                        formData.templateId === template.id && {
+                          borderColor: Colors.teal,
+                          backgroundColor: Colors.tealPale,
+                        }
+                      ]}
+                      onPress={() => setFormData({ ...formData, templateId: template.id })}
+                    >
+                      <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: template.brandColor }} />
+                      <Text style={[
+                        { fontSize: 14, color: Colors.slate },
+                        formData.templateId === template.id && { color: Colors.teal, fontWeight: '600' }
+                      ]}>
+                        {template.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+            {/* --- END TEMPLATE SELECTION --- */}
+
           </Card>
         )}
 
@@ -250,6 +326,7 @@ export default function AddEditUserScreen() {
   );
 }
 
+// ... keep your existing styles exactly the same ...
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },

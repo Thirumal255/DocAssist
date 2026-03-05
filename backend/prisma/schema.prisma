@@ -28,6 +28,8 @@ model User {
   prescriptions   Prescription[]
   visits          Visit[]
   availability    DoctorAvailability[]
+  templateId String?
+  template   PrescriptionTemplate? @relation(fields: [templateId], references: [id])
 
   @@map("users")
 }
@@ -209,4 +211,39 @@ model Medicine {
   createdAt        DateTime @default(now()) @map("created_at")
 
   @@map("medicines") // The actual table name in Postgres
+}
+
+
+model PrescriptionTemplate {
+  id                   String   @id @default(uuid())
+  name                 String   // e.g., "Main Branch A4", "Minimalist Blue"
+
+  // Branding & Assets
+  logoUrl              String?  
+  watermarkUrl         String?  
+  brandColor           String   @default("#0A7B6E") 
+  
+  // Layout & Sizing
+  headerStyle          String   @default("left")    
+  paperSize            String   @default("A4")      
+  
+  // Clinic Info Overrides
+  clinicName           String?  
+  clinicAddress        String?  
+  clinicContact        String?  
+
+  // Content Toggles
+  showVitals           Boolean  @default(true)      
+  showDiagnosis        Boolean  @default(true)      
+  showPatientDetails   Boolean  @default(true)      
+  
+  // Footer & Legal
+  footerText           String?  
+  digitalSignatureUrl  String?  
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  
+  // Relation back to the doctors who use this template
+  doctors              User[]
 }
