@@ -128,7 +128,7 @@ export interface AISuggestion {
 export interface DashboardStats {
   todayAppointments: number;
   pendingAppointments: number;
-  totalPatients: number;
+  totalCancelled: number;
   completedToday: number;
 }
 

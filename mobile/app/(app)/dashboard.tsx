@@ -117,8 +117,8 @@ export default function DashboardScreen() {
               <Text style={styles.statLabel}>Pending</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statNum}>{stats?.totalPatients || 0}</Text>
-              <Text style={styles.statLabel}>Total Patients</Text>
+              <Text style={styles.statNum}>{stats?.totalCancelled || 0}</Text>
+              <Text style={styles.statLabel}>Cancelled</Text>
             </View>
           </View>
         </View>
@@ -169,6 +169,9 @@ export default function DashboardScreen() {
                 <View style={styles.apptInfo}>
                   <Text style={styles.apptName}>{appt.patient?.name}</Text>
                   <Text style={styles.apptType}>{appt.chiefComplaint || 'General consultation'}</Text>
+                  {appt.doctor?.name && (
+                    <Text style={styles.doctorName}>👨‍⚕️ {appt.doctor.name}</Text>
+                  )}
                 </View>
                 <View style={[styles.apptBadge, appt.type === 'new_visit' ? styles.badgeNew : styles.badgeFollow]}>
                   <Text style={[styles.apptBadgeText, appt.type === 'new_visit' ? styles.badgeNewText : styles.badgeFollowText]}>
@@ -215,6 +218,7 @@ const styles = StyleSheet.create({
   apptInfo: { flex: 1, marginLeft: 12 },
   apptName: { fontSize: 15, fontWeight: '600', color: '#0D1B2A' },
   apptType: { fontSize: 12, color: '#6B7C93', marginTop: 2 },
+  doctorName: { fontSize: 11, color: '#0A7B6E', marginTop: 4, fontWeight: '500' },
   apptBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   badgeNew: { backgroundColor: '#FEF3C7' },
   badgeFollow: { backgroundColor: '#E0F2FE' },

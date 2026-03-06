@@ -47,12 +47,16 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
 router.get('/today', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const user = req.user!;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
 
-    const where: any = { scheduledAt: { gte: today, lt: tomorrow } };
+    const where: any = {
+      scheduledAt: { gte: todayStart, lte: todayEnd },
+      status: 'SCHEDULED' // Only fetch pending appointments for the queue!
+    };
+
     if (user.role === 'doctor') {
       where.doctorId = user.id;
     }
@@ -60,16 +64,17 @@ router.get('/today', authMiddleware, async (req: AuthRequest, res: Response) => 
     const appointments = await prisma.appointment.findMany({
       where,
       include: {
-        patient: { select: { id: true, name: true, phone: true } },
-        doctor: { select: { id: true, name: true } }
+        patient: { select: { id: true, name: true, phone: true, gender: true, dob: true } },
+        // Ensure we bring the doctor's name along for the Admin view
+        doctor: { select: { id: true, name: true } } 
       },
-      orderBy: { scheduledAt: 'asc' }
+      orderBy: { scheduledAt: 'asc' } // Show earliest appointments first
     });
 
     res.json(appointments);
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: 'Failed to fetch appointments' });
+    console.error('Error fetching today queue:', error);
+    res.status(500).json({ error: 'Failed to fetch today appointments' });
   }
 });
 
@@ -77,39 +82,51 @@ router.get('/today', authMiddleware, async (req: AuthRequest, res: Response) => 
 router.get('/stats', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const user = req.user!;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
 
-    const whereBase: any = {};
+    const baseWhere: any = {
+      scheduledAt: { gte: todayStart, lte: todayEnd }
+    };
+
+    // Role-based filtering
     if (user.role === 'doctor') {
-      whereBase.doctorId = user.id;
+      baseWhere.doctorId = user.id;
     }
 
-    const [todayAppointments, pendingAppointments, totalPatients] = await Promise.all([
-      prisma.appointment.count({
-        where: { ...whereBase, scheduledAt: { gte: today, lt: tomorrow } }
-      }),
-      prisma.appointment.count({
-        // FIX: Use uppercase 'SCHEDULED' to match Enum
-        where: { ...whereBase, status: 'SCHEDULED', scheduledAt: { gte: today } }
-      }),
-      user.role === 'doctor'
-        ? prisma.patient.count({
-            where: {
-              OR: [
-                { appointments: { some: { doctorId: user.id } } },
-                { visits: { some: { doctorId: user.id } } }
-              ]
-            }
-          })
-        : prisma.patient.count()
-    ]);
+    // 1. Total Appointments (Excluding Cancelled)
+    const todayAppointments = await prisma.appointment.count({
+      where: { 
+        ...baseWhere, 
+        status: { not: 'CANCELLED' } 
+      }
+    });
 
-    res.json({ todayAppointments, pendingAppointments, totalPatients });
+    // 2. Pending Appointments (Only Scheduled)
+    const pendingAppointments = await prisma.appointment.count({
+      where: { 
+        ...baseWhere, 
+        status: 'SCHEDULED' 
+      }
+    });
+
+    // 3. Cancelled Appointments (Replaces Total Patients)
+    const totalCancelled = await prisma.appointment.count({
+      where: { 
+        ...baseWhere, 
+        status: 'CANCELLED' 
+      }
+    });
+
+    res.json({
+      todayAppointments,
+      pendingAppointments,
+      totalCancelled // Replaced totalPatients with this
+    });
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error fetching stats:', error);
     res.status(500).json({ error: 'Failed to fetch stats' });
   }
 });

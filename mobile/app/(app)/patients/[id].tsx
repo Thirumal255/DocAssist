@@ -59,7 +59,9 @@ export default function PatientDetailScreen() {
       }
       if (historyResult.data) {
         setHistory(historyResult.data);
+        console.log('🔍 BACKEND HISTORY DATA:', JSON.stringify(historyResult.data[0], null, 2));
       }
+      
     } catch (error) {
       log.error(MODULE, 'Failed to load patient', error);
       Alert.alert('Error', 'Failed to load patient details');
@@ -198,35 +200,52 @@ export default function PatientDetailScreen() {
 
         {activeTab === 'vitals' && (
           <View style={styles.vitalsContainer}>
-            <Text style={styles.sectionTitle}>Recent Vitals</Text>
-            {history.length > 0 && history[0].vitals ? (
-              <View style={styles.vitalsGrid}>
-                <View style={styles.vitalCard}>
-                  <Ionicons name="heart" size={20} color="#DC2626" />
-                  <Text style={styles.vitalValue}>{history[0].vitals.bp || 'N/A'}</Text>
-                  <Text style={styles.vitalLabel}>Blood Pressure</Text>
-                </View>
-                <View style={styles.vitalCard}>
-                  <Ionicons name="pulse" size={20} color="#7C3AED" />
-                  <Text style={styles.vitalValue}>{history[0].vitals.pulse || 'N/A'}</Text>
-                  <Text style={styles.vitalLabel}>Pulse</Text>
-                </View>
-                <View style={styles.vitalCard}>
-                  <Ionicons name="thermometer" size={20} color="#F59E0B" />
-                  <Text style={styles.vitalValue}>{history[0].vitals.temperature || 'N/A'}°F</Text>
-                  <Text style={styles.vitalLabel}>Temperature</Text>
-                </View>
-                <View style={styles.vitalCard}>
-                  <Ionicons name="fitness" size={20} color="#0A7B6E" />
-                  <Text style={styles.vitalValue}>{history[0].vitals.weight || 'N/A'} kg</Text>
-                  <Text style={styles.vitalLabel}>Weight</Text>
-                </View>
-              </View>
-            ) : (
+            {history.filter(h => h.vitals).length === 0 ? (
               <View style={styles.emptyState}>
                 <Ionicons name="fitness-outline" size={48} color="#6B7C93" />
                 <Text style={styles.emptyText}>No vitals recorded</Text>
               </View>
+            ) : (
+              history
+                .filter(h => h.vitals)
+                .map((visit) => (
+                  <View key={`vitals-${visit.id}`} style={styles.vitalHistoryContainer}>
+                    <View style={styles.vitalHistoryHeader}>
+                      <Ionicons name="calendar-outline" size={16} color="#6B7C93" />
+                      <Text style={styles.vitalHistoryDate}>{formatDate(visit.visitedAt)}</Text>
+                    </View>
+                    
+                    <View style={styles.vitalsGrid}>
+                      <View style={styles.vitalCard}>
+                        <Ionicons name="heart" size={20} color="#DC2626" />
+                        <Text style={styles.vitalValue}>{visit.vitals.bp || 'N/A'}</Text>
+                        <Text style={styles.vitalLabel}>Blood Pressure</Text>
+                      </View>
+                      
+                      <View style={styles.vitalCard}>
+                        <Ionicons name="pulse" size={20} color="#7C3AED" />
+                        <Text style={styles.vitalValue}>{visit.vitals.pulse || 'N/A'}</Text>
+                        <Text style={styles.vitalLabel}>Pulse</Text>
+                      </View>
+                      
+                      <View style={styles.vitalCard}>
+                        <Ionicons name="thermometer" size={20} color="#F59E0B" />
+                        <Text style={styles.vitalValue}>
+                          {visit.vitals.temperature ? `${visit.vitals.temperature}°F` : 'N/A'}
+                        </Text>
+                        <Text style={styles.vitalLabel}>Temperature</Text>
+                      </View>
+                      
+                      <View style={styles.vitalCard}>
+                        <Ionicons name="fitness" size={20} color="#0A7B6E" />
+                        <Text style={styles.vitalValue}>
+                          {visit.vitals.weight ? `${visit.vitals.weight} kg` : 'N/A'}
+                        </Text>
+                        <Text style={styles.vitalLabel}>Weight</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))
             )}
           </View>
         )}
@@ -359,6 +378,9 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', paddingVertical: 40 },
   emptyText: { fontSize: 14, color: '#6B7C93', marginTop: 12 },
   vitalsContainer: { padding: 4 },
+  vitalHistoryContainer: { marginBottom: 28 },
+  vitalHistoryHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, paddingHorizontal: 4 },
+  vitalHistoryDate: { fontSize: 14, fontWeight: '700', color: '#0D1B2A' },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: '#0D1B2A', marginBottom: 12 },
   vitalsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   vitalCard: { width: '47%', backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },

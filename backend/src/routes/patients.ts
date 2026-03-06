@@ -78,7 +78,8 @@ router.get('/:id/history', authMiddleware, async (req: AuthRequest, res: Respons
       where: visitWhere,
       include: {
         doctor: { select: { id: true, name: true, specialty: true } },
-        prescription: { include: { items: true } }
+        prescription: { include: { items: true } },
+        vitals: true
       },
       orderBy: { visitedAt: 'desc' }
     });
