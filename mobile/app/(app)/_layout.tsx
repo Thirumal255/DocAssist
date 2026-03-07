@@ -101,6 +101,7 @@ export default function AppLayout() {
 
       <Tabs.Screen name="admin" options={{ href: null }} />
       <Tabs.Screen name="prescriptions" options={{ href: null }} />
+      <Tabs.Screen name="reports" options={{ href: null }}/>
     </Tabs>
   );
 }

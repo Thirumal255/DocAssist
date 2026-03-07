@@ -14,4 +14,5 @@ export * from './medicines'; // Ensures medicinesApi is available for search
 export * from './templates';
 export * from './invoices'; // Ensure invoicesApi is available for payment processing
 export * from './clinic'; // Ensure clinicApi is available for clinic settings
+export * from './reports'; // Ensure reportsApi is available for dashboard stats
 //export * from './auth';      // Uncommented as it's typically required

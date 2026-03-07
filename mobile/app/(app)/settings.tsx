@@ -56,6 +56,16 @@ export default function SettingsScreen() {
       onPress: () => router.push('/(app)/admin/clinic-profile'),
       role: 'admin',
     },
+
+    {
+      id: 'reports',
+      title: 'Reports & Analytics',
+      subtitle: 'Revenue, patient stats & doctor performance',
+      icon: 'bar-chart', // A nice chart icon
+      iconBg: '#8B5CF6', // A nice purple color to make it stand out
+      onPress: () => router.push('/(app)/reports'),
+      role: 'admin',
+    },
     
     {
       id: 'users',

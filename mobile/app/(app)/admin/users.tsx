@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, ActivityIndicator, Alert,ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,7 +15,7 @@ export default function AdminUsersScreen() {
   const { user: currentUser } = useAuthStore();
   const [users, setUsers] = useState<User[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterRole, setFilterRole] = useState<'all' | 'doctor' | 'admin'>('all');
+  const [filterRole, setFilterRole] = useState<'all' | 'doctor' | 'admin' | 'receptionist'>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -93,11 +93,11 @@ export default function AdminUsersScreen() {
   const renderUser = ({ item }: { item: User }) => (
     <Card style={[styles.userCard, !item.isActive && styles.userCardInactive]}>
       <View style={styles.userRow}>
-        <View style={[styles.avatar, { backgroundColor: item.role === 'admin' ? '#EEF2FF' : Colors.tealPale }]}>
+        <View style={[styles.avatar, { backgroundColor: item.role === 'admin' ? '#EEF2FF' : item.role === 'receptionist' ? '#FEF3C7' : Colors.tealPale }]}>
           <Ionicons 
-            name={item.role === 'admin' ? 'shield' : 'medical'} 
+            name={item.role === 'admin' ? 'shield' : item.role === 'receptionist' ? 'desktop' : 'medical'} 
             size={20} 
-            color={item.role === 'admin' ? '#6366F1' : Colors.teal} 
+            color={item.role === 'admin' ? '#6366F1' : item.role === 'receptionist' ? '#F59E0B' : Colors.teal} 
           />
         </View>
         <View style={styles.userInfo}>
@@ -111,14 +111,16 @@ export default function AdminUsersScreen() {
           </View>
           <Text style={styles.userEmail}>{item.email}</Text>
           <View style={styles.metaRow}>
-            <View style={[styles.roleBadge, item.role === 'admin' ? styles.adminBadge : styles.doctorBadge]}>
-              <Text style={[styles.roleBadgeText, item.role === 'admin' ? styles.adminBadgeText : styles.doctorBadgeText]}>
-                {item.role === 'admin' ? 'Admin' : 'Doctor'}
+            <View style={[styles.roleBadge, item.role === 'admin' ? styles.adminBadge : item.role === 'receptionist' ? styles.receptionistBadge : styles.doctorBadge]}>
+              <Text style={[styles.roleBadgeText, item.role === 'admin' ? styles.adminBadgeText : item.role === 'receptionist' ? styles.receptionistBadgeText : styles.doctorBadgeText]}>
+                {item.role === 'admin' ? 'Admin' : item.role === 'receptionist' ? 'Receptionist' : 'Doctor'}
               </Text>
             </View>
             {item.specialty && <Text style={styles.specialty}>{item.specialty}</Text>}
           </View>
         </View>
+        
+
         <View style={styles.actions}>
           <TouchableOpacity 
             style={styles.actionBtn} 
@@ -176,19 +178,19 @@ export default function AdminUsersScreen() {
             </TouchableOpacity>
           )}
         </View>
-        <View style={styles.filterRow}>
-          {(['all', 'doctor', 'admin'] as const).map(role => (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+          {(['all', 'doctor', 'admin', 'receptionist'] as const).map(role => (
             <TouchableOpacity
               key={role}
               style={[styles.filterBtn, filterRole === role && styles.filterBtnActive]}
               onPress={() => setFilterRole(role)}
             >
               <Text style={[styles.filterBtnText, filterRole === role && styles.filterBtnTextActive]}>
-                {role === 'all' ? 'All' : role === 'doctor' ? 'Doctors' : 'Admins'}
+                {role === 'all' ? 'All' : role === 'doctor' ? 'Doctors' : role === 'admin' ? 'Admins' : 'Receptionists'}
               </Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
       </View>
 
       {isLoading ? (
@@ -258,4 +260,6 @@ const styles = StyleSheet.create({
   activateBtn: { backgroundColor: '#D1FAE5' },
   emptyState: { alignItems: 'center', paddingVertical: Spacing['10xl'] },
   emptyText: { fontSize: Typography.fontSize.md, color: Colors.muted, marginTop: Spacing.lg },
+  receptionistBadge: { backgroundColor: '#FEF3C7' },
+  receptionistBadgeText: { color: '#F59E0B' },
 });

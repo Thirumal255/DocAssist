@@ -27,7 +27,7 @@ export default function AddEditUserScreen() {
     name: '',
     email: '',
     password: '',
-    role: 'doctor' as 'doctor' | 'admin',
+    role: 'doctor' as 'doctor' | 'admin' | 'receptionist',
     phone: '',
     specialty: '',
     registrationNo: '',
@@ -210,7 +210,8 @@ export default function AddEditUserScreen() {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Role *</Text>
-            <View style={styles.roleRow}>
+            {/* Added flexWrap so they fit nicely on smaller screens */}
+            <View style={[styles.roleRow, { flexWrap: 'wrap' }]}>
               <TouchableOpacity
                 style={[styles.roleBtn, formData.role === 'doctor' && styles.roleBtnActive]}
                 onPress={() => setFormData({ ...formData, role: 'doctor' })}
@@ -224,6 +225,14 @@ export default function AddEditUserScreen() {
               >
                 <Ionicons name="shield" size={18} color={formData.role === 'admin' ? Colors.white : '#6366F1'} />
                 <Text style={[styles.roleText, formData.role === 'admin' && styles.roleTextActive]}>Admin</Text>
+              </TouchableOpacity>
+              {/* --- NEW RECEPTIONIST BUTTON --- */}
+              <TouchableOpacity
+                style={[styles.roleBtn, formData.role === 'receptionist' && styles.roleBtnActive]}
+                onPress={() => setFormData({ ...formData, role: 'receptionist' })}
+              >
+                <Ionicons name="desktop" size={18} color={formData.role === 'receptionist' ? Colors.white : '#F59E0B'} />
+                <Text style={[styles.roleText, formData.role === 'receptionist' && styles.roleTextActive]}>Receptionist</Text>
               </TouchableOpacity>
             </View>
           </View>
