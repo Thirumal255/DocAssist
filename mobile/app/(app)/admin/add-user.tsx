@@ -32,7 +32,8 @@ export default function AddEditUserScreen() {
     specialty: '',
     registrationNo: '',
     // --- ADDED TEMPLATE ID TO FORM ---
-    templateId: '', 
+    templateId: '',
+    consultationFee: '', 
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -73,7 +74,8 @@ export default function AddEditUserScreen() {
           specialty: user.specialty || '',
           registrationNo: user.registrationNo || '',
           // Load existing template if they have one
-          templateId: user.templateId || '', 
+          templateId: user.templateId || '',
+          consultationFee: (user as any).consultationFee ? (user as any).consultationFee.toString() : '', 
         });
       }
     } catch (error) {
@@ -106,21 +108,26 @@ export default function AddEditUserScreen() {
 
     try {
       let result;
+      // Convert the fee string back to a number
+      const feeNumber = formData.consultationFee ? parseFloat(formData.consultationFee) : 0;
+
       if (isEditing) {
         const updateData: any = {
           name: formData.name,
           phone: formData.phone || undefined,
           specialty: formData.specialty || undefined,
           registrationNo: formData.registrationNo || undefined,
-          // Include template update
           templateId: formData.templateId || undefined,
+          consultationFee: feeNumber, // <--- NEW
         };
         if (formData.password) {
           updateData.password = formData.password;
         }
         result = await usersApi.update(id!, updateData);
       } else {
-        result = await usersApi.create(formData as CreateUserData);
+        // --- NEW: Inject the parsed fee into the create payload ---
+        const createPayload = { ...formData, consultationFee: feeNumber };
+        result = await usersApi.create(createPayload as any);
       }
 
       if (result.data) {
@@ -132,6 +139,7 @@ export default function AddEditUserScreen() {
         Alert.alert('Error', result.error || 'Failed to save user');
       }
     } catch (error) {
+
       log.error(MODULE, 'Save failed', error);
       Alert.alert('Error', 'Something went wrong');
     } finally {
@@ -256,6 +264,22 @@ export default function AddEditUserScreen() {
               />
             </View>
 
+            {/* --- NEW: CONSULTATION FEE --- */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Consultation Fee (₹)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. 500"
+                value={formData.consultationFee}
+                onChangeText={(text) => {
+                  // Only allow numbers
+                  const numericText = text.replace(/[^0-9]/g, '');
+                  setFormData({ ...formData, consultationFee: numericText });
+                }}
+                keyboardType="numeric"
+              />
+            </View>
+            
             {/* --- ADDED TEMPLATE SELECTION --- */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Prescription Template</Text>

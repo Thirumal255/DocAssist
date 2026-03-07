@@ -30,6 +30,7 @@ model User {
   availability    DoctorAvailability[]
   templateId String?
   template   PrescriptionTemplate? @relation(fields: [templateId], references: [id])
+  consultationFee Float @default(0) // Used for doctors. Defaults to 0 for admins/receptionists.
 
   @@map("users")
 }
@@ -37,6 +38,21 @@ model User {
 enum Role {
   admin
   doctor
+  receptionist
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  REFUNDED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  UPI
+  OTHER
 }
 
 // Doctor Availability - MULTIPLE time slots per day allowed
@@ -77,6 +93,7 @@ model Patient {
   appointments      Appointment[]
   visits            Visit[]
   prescriptions     Prescription[]
+  invoices Invoice[]
 
   @@map("patients")
 }
@@ -106,6 +123,7 @@ model Appointment {
   updatedAt       DateTime          @updatedAt
 
   visit           Visit?
+  invoice Invoice?
 
   @@map("appointments")
 }
@@ -246,4 +264,42 @@ model PrescriptionTemplate {
   
   // Relation back to the doctors who use this template
   doctors              User[]
+}
+
+
+model Invoice {
+  id              String        @id @default(cuid())
+  
+  // Relations
+  appointmentId   String        @unique // 1-to-1 relation with Appointment
+  appointment     Appointment   @relation(fields: [appointmentId], references: [id])
+  patientId       String
+  patient         Patient       @relation(fields: [patientId], references: [id])
+  
+  // Billing Details
+  amount          Float
+  status          InvoiceStatus @default(PENDING)
+  paymentMethod   PaymentMethod?
+  
+  // Timestamps for receipts
+  paidAt          DateTime?
+  refundedAt      DateTime?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+// --- NEW: Global Clinic Settings for Billing & App branding ---
+model ClinicSettings {
+  id          String   @id @default("global") // We only ever need ONE row
+  name        String   @default("My Clinic")
+  address     String?
+  phone       String?
+  email       String?
+  logoBase64  String?  @db.Text // Store the clinic logo
+  brandColor  String   @default("#0A7B6E")
+  taxId       String?  // GSTIN or Registration Number
+  footerText  String?
+  
+  updatedAt   DateTime @updatedAt
 }

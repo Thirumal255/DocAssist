@@ -131,41 +131,59 @@ router.get('/stats', authMiddleware, async (req: AuthRequest, res: Response) => 
   }
 });
 
-// POST / - Create Appointment
+// CREATE APPOINTMENT & AUTO-GENERATE INVOICE
 router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const { patientId, doctorId, scheduledAt, type, chiefComplaint, notes } = req.body;
+    const user = req.user!;
+    // Note: Adjust these destructured fields if your frontend sends different names
+    const { patientId, doctorId, scheduledAt, chiefComplaint } = req.body;
 
     if (!patientId || !doctorId || !scheduledAt) {
-      return res.status(400).json({ error: 'Patient, doctor, and scheduled time are required' });
+      return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    // 1. Fetch the Doctor to get their specific Consultation Fee
+    const doctor = await prisma.user.findUnique({
+      where: { id: doctorId },
+      select: { consultationFee: true }
+    });
+
+    const feeAmount = doctor?.consultationFee || 0;
+
+    // 2. Create the Appointment AND the linked Invoice simultaneously
     const appointment = await prisma.appointment.create({
       data: {
         patientId,
         doctorId,
         scheduledAt: new Date(scheduledAt),
-        type: type || 'new_visit',
         chiefComplaint,
-        notes,
-        // FIX: Use uppercase 'SCHEDULED'
-        status: 'SCHEDULED'
+        status: 'SCHEDULED',
+        
+        // --- NEW: Auto-Create the Pending Invoice ---
+        invoice: {
+          create: {
+            patientId,
+            amount: feeAmount,
+            status: 'PENDING'
+          }
+        }
       },
       include: {
-        patient: { select: { id: true, name: true, phone: true } },
-        doctor: { select: { id: true, name: true } }
+        patient: true,
+        doctor: { select: { id: true, name: true } },
+        invoice: true // Return the new invoice data to the frontend
       }
     });
 
     res.status(201).json(appointment);
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error creating appointment:', error);
     res.status(500).json({ error: 'Failed to create appointment' });
   }
 });
 
-// PATCH /:id/status - Update Status (Completed, No Show, etc.)
-// This was missing and needed for the "Mark Completed" button
+
+// PATCH /:id/status - Update Status (Completed, No Show, Cancelled, etc.)
 router.patch('/:id/status', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -173,10 +191,39 @@ router.patch('/:id/status', authMiddleware, async (req: AuthRequest, res: Respon
 
     if (!status) return res.status(400).json({ error: 'Status is required' });
 
-    // Validate status against allowed Enum values if strict, but Prisma will throw if invalid anyway
+    // 1. Fetch the appointment AND its linked invoice before updating
+    const currentAppointment = await prisma.appointment.findUnique({
+      where: { id },
+      include: { invoice: true }
+    });
+
+    if (!currentAppointment) return res.status(404).json({ error: 'Appointment not found' });
+
+    // 2. THE REFUND ENGINE: Handle the invoice if the appointment is cancelled
+    let invoiceUpdate = {};
+    if (status === 'CANCELLED' && currentAppointment.invoice) {
+      if (currentAppointment.invoice.status === 'PAID') {
+        // If they already paid, trigger a refund
+        invoiceUpdate = {
+          status: 'REFUNDED',
+          refundedAt: new Date()
+        };
+      } else if (currentAppointment.invoice.status === 'PENDING') {
+        // If they haven't paid yet, just cancel the draft invoice
+        invoiceUpdate = { status: 'CANCELLED' };
+      }
+    }
+
+    // 3. Perform the update: Update Appointment and conditionally update the Invoice
     const appointment = await prisma.appointment.update({
       where: { id },
-      data: { status } // Expects "COMPLETED", "NO_SHOW", etc.
+      data: { 
+        status,
+        ...(Object.keys(invoiceUpdate).length > 0 && {
+          invoice: { update: invoiceUpdate }
+        })
+      },
+      include: { invoice: true } // Return the updated invoice to the frontend
     });
 
     res.json(appointment);
@@ -212,16 +259,44 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   }
 });
 
-// POST /:id/cancel - Cancel Appointment
+// POST /:id/cancel - Explicit Cancel Appointment Route
 router.post('/:id/cancel', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
 
+    // 1. Fetch the appointment and its linked invoice
+    const currentAppointment = await prisma.appointment.findUnique({
+      where: { id },
+      include: { invoice: true }
+    });
+
+    if (!currentAppointment) return res.status(404).json({ error: 'Appointment not found' });
+
+    // 2. THE REFUND ENGINE: Handle the invoice
+    let invoiceUpdate = {};
+    if (currentAppointment.invoice) {
+      if (currentAppointment.invoice.status === 'PAID') {
+        invoiceUpdate = {
+          status: 'REFUNDED',
+          refundedAt: new Date()
+        };
+      } else if (currentAppointment.invoice.status === 'PENDING') {
+        invoiceUpdate = { status: 'CANCELLED' };
+      }
+    }
+
+    // 3. Perform the update
     const appointment = await prisma.appointment.update({
       where: { id },
-      // FIX: Use uppercase 'CANCELLED'
-      data: { status: 'CANCELLED', cancelReason: reason }
+      data: { 
+        status: 'CANCELLED', 
+        cancelReason: reason,
+        ...(Object.keys(invoiceUpdate).length > 0 && {
+          invoice: { update: invoiceUpdate }
+        })
+      },
+      include: { invoice: true }
     });
 
     res.json(appointment);

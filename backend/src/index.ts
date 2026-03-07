@@ -8,6 +8,8 @@ dotenv.config();
 import authRoutes from './routes/auth';
 import patientsRoutes from './routes/patients';
 import appointmentsRoutes from './routes/appointments';
+import invoiceRoutes from './routes/invoices';
+import clinicRoutes from './routes/clinic';
 import prescriptionsRoutes from './routes/prescriptions';
 import medicinesRoutes from './routes/medicines';
 import availabilityRoutes from './routes/availability';
@@ -67,6 +69,8 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/patients', patientsRoutes);
 app.use('/api/appointments', appointmentsRoutes);
+app.use('/api/invoices', invoiceRoutes);
+app.use('/api/clinic', clinicRoutes);
 app.use('/api/prescriptions', prescriptionsRoutes);
 app.use('/api/medicines', medicinesRoutes);
 app.use('/api/availability', availabilityRoutes);

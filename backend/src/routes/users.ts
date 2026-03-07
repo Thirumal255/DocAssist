@@ -20,6 +20,8 @@ router.get('/doctors', authMiddleware, async (req: AuthRequest, res: Response) =
         specialty: true,
         phone: true,
         registrationNo: true,
+        templateId: true,
+        consultationFee: true,
       },
       orderBy: { name: 'asc' }
     });
@@ -100,6 +102,7 @@ router.get('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
         createdAt: true,
         isActive: true,
         templateId: true, // <-- ADDED: So the edit screen loads the current template
+        consultationFee: true,
       }
     });
 
@@ -123,8 +126,9 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Only admins can create users' });
     }
 
+    
     // <-- ADDED templateId extraction here
-    const { email, password, name, role, phone, specialty, registrationNo, templateId } = req.body;
+    const { email, password, name, role, phone, specialty, registrationNo, templateId,consultationFee } = req.body;
 
     if (!email || !password || !name || !role) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -148,6 +152,7 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
         registrationNo: role === 'doctor' ? registrationNo : null,
         // <-- ADDED proper template assignment
         templateId: role === 'doctor' ? (templateId || null) : null,
+        consultationFee: consultationFee ? Number(consultationFee) : 0,
         isActive: true,
       },
     });
@@ -170,7 +175,7 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
 
     const { id } = req.params;
     // <-- ADDED templateId extraction here
-    const { name, phone, specialty, registrationNo, isActive, password, templateId } = req.body;
+    const { name, phone, specialty, registrationNo, isActive, password, templateId,consultationFee } = req.body;
 
     const updateData: any = {
       name,
@@ -178,7 +183,12 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
       specialty,
       registrationNo,
       isActive,
+      templateId,
     };
+    // 2. Add this line to update the fee if provided
+    if (consultationFee !== undefined) {
+      updateData.consultationFee = Number(consultationFee);
+    }
 
     // <-- ADDED: Update template ID if it was sent
     if (templateId !== undefined) {

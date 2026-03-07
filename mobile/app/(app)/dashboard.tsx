@@ -19,6 +19,7 @@ export default function DashboardScreen() {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin';
   const isDoctor = user?.role === 'doctor';
+  const isReceptionist = user?.role === 'receptionist'; // --- NEW
   
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
@@ -61,18 +62,29 @@ export default function DashboardScreen() {
     return 'Good Evening';
   };
 
-  // Quick actions based on role
-  const quickActions = isAdmin ? [
+  // --- UPDATED: Role-based Quick Actions ---
+  const adminActions = [
     { id: 'appointment', icon: 'calendar', label: 'New Appointment', color: '#E6F5F3', route: '/(app)/appointments/new' },
     { id: 'patient', icon: 'person-add', label: 'Add Patient', color: '#EEF2FF', route: '/(app)/patients/add' },
     { id: 'users', icon: 'people', label: 'Manage Users', color: '#FEF3C7', route: '/(app)/admin/users' },
-    { id: 'availability', icon: 'time', label: 'Availability', color: '#FCE7F3', route: '/(app)/admin/manage-availability' },
-  ] : [
+    { id: 'billing', icon: 'receipt', label: 'Billing', color: '#FCE7F3', route: '/(app)/billing' },
+  ];
+
+  const receptionistActions = [
+    { id: 'appointment', icon: 'calendar', label: 'New Appointment', color: '#E6F5F3', route: '/(app)/appointments/new' },
+    { id: 'patient', icon: 'person-add', label: 'Add Patient', color: '#EEF2FF', route: '/(app)/patients/add' },
+    { id: 'billing', icon: 'receipt', label: 'Billing', color: '#FCE7F3', route: '/(app)/billing' },
+    { id: 'records', icon: 'document-text', label: 'Records', color: '#FEF3C7', route: '/(app)/records' },
+  ];
+
+  const doctorActions = [
     { id: 'appointment', icon: 'calendar', label: 'New Appointment', color: '#E6F5F3', route: '/(app)/appointments/new' },
     { id: 'patient', icon: 'person-add', label: 'Add Patient', color: '#EEF2FF', route: '/(app)/patients/add' },
     { id: 'prescription', icon: 'document-text', label: 'Write Rx', color: '#FEF3C7', route: '/(app)/prescriptions/new' },
     { id: 'reports', icon: 'stats-chart', label: 'Reports', color: '#FCE7F3', route: '/(app)/reports' },
   ];
+
+  const quickActions = isAdmin ? adminActions : isReceptionist ? receptionistActions : doctorActions;
 
   if (isLoading) {
     return (
@@ -88,9 +100,7 @@ export default function DashboardScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={() => { setIsRefreshing(true); loadData(); }} colors={['#0A7B6E']} />
-        }
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => { setIsRefreshing(true); loadData(); }} colors={['#0A7B6E']} />}
       >
         {/* Header */}
         <View style={styles.header}>

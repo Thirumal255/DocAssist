@@ -23,6 +23,7 @@ export default function SettingsScreen() {
   const { user, logout } = useAuthStore();
   const isAdmin = user?.role === 'admin';
   const isDoctor = user?.role === 'doctor';
+  const isReceptionist = user?.role === 'receptionist';
 
   const handleLogout = () => {
     Alert.alert(
@@ -44,6 +45,18 @@ export default function SettingsScreen() {
   };
 
   const adminMenuItems: MenuItem[] = [
+
+    // --- ADD THIS NEW CLINIC PROFILE ITEM ---
+    {
+      id: 'clinic-profile',
+      title: 'Clinic Profile',
+      subtitle: 'Set name, logo, address & GST',
+      icon: 'business',
+      iconBg: '#F59E0B', // A nice amber color
+      onPress: () => router.push('/(app)/admin/clinic-profile'),
+      role: 'admin',
+    },
+    
     {
       id: 'users',
       title: 'Manage Users',
@@ -150,7 +163,7 @@ export default function SettingsScreen() {
             <Text style={styles.userEmail}>{user?.email}</Text>
             <View style={styles.roleBadge}>
               <Text style={styles.roleBadgeText}>
-                {isAdmin ? 'Administrator' : isDoctor ? 'Doctor' : 'User'}
+                {isAdmin ? 'Administrator' : isDoctor ? 'Doctor' : isReceptionist ? 'Receptionist' : 'User'}
               </Text>
             </View>
           </View>

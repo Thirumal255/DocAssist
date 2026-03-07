@@ -1,4 +1,4 @@
-import { Tabs, router } from 'expo-router'; // Added 'router' import
+import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store';
 
@@ -8,6 +8,9 @@ export default function AppLayout() {
   if (!isAuthenticated || !user) {
     return null;
   }
+
+  // --- NEW: Check if user handles billing ---
+  const isBillingStaff = user.role === 'admin' || user.role === 'receptionist';
 
   return (
     <Tabs
@@ -29,7 +32,6 @@ export default function AppLayout() {
         },
       }}
     >
-      {/* VISIBLE TABS - Only these 5 appear in bottom bar */}
       <Tabs.Screen
         name="dashboard"
         options={{
@@ -49,7 +51,6 @@ export default function AppLayout() {
         }}
       />
       
-      {/* UPDATED PATIENTS TAB */}
       <Tabs.Screen
         name="patients"
         options={{
@@ -57,13 +58,25 @@ export default function AppLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="people" size={size} color={color} />
           ),
-          // This listener forces the tab to reset to the main list every time it's clicked
           listeners: {
             tabPress: (e) => {
-              e.preventDefault(); // Stop default behavior (preserving history)
-              router.replace('/(app)/patients'); // Reset to the list view
+              e.preventDefault(); 
+              router.replace('/(app)/patients'); 
             },
           },
+        }}
+      />
+
+      {/* --- NEW BILLING TAB --- */}
+      <Tabs.Screen
+        name="billing"
+        options={{
+          title: 'Billing',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="receipt" size={size} color={color} />
+          ),
+          // Magically hides the tab from Doctors!
+          href: isBillingStaff ? '/billing' : null, 
         }}
       />
 
@@ -86,15 +99,8 @@ export default function AppLayout() {
         }}
       />
 
-      {/* HIDDEN FROM TAB BAR - These routes exist but don't show as tabs */}
-      <Tabs.Screen
-        name="admin"
-        options={{ href: null }}
-      />
-      <Tabs.Screen
-        name="prescriptions"
-        options={{ href: null }}
-      />
+      <Tabs.Screen name="admin" options={{ href: null }} />
+      <Tabs.Screen name="prescriptions" options={{ href: null }} />
     </Tabs>
   );
 }
