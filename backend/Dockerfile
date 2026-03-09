@@ -30,6 +30,9 @@ RUN npm ci --only=production
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 
+# Give Prisma a dummy URL so it doesn't crash during the build phase
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost/dummy"
+
 # Generate Prisma client
 RUN npx prisma@5 generate
 
