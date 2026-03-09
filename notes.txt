@@ -12,3 +12,34 @@ npm run dev
 to start front end
 
 npx expo start -c
+
+
+npx ts-node prisma/load_medicines.ts
+
+
+Cloud Setup
+----------------------------=====================================
+
+Postgres DB credentials.
+-----------------------------------
+
+Instance : docassist-db ,User name and password : postgres/Docassist@123
+
+db name is docassist
+
+34.100.162.216 Public IP of Postgress
+
+Connection Name: mf-advisor-487108:asia-south1:docassist-db
+
+DATABASE_URL="postgresql://postgres:Docassist@123@34.100.162.216:5432/docassist"
+
+For Migration
+  a) connect to google cloud through env file changes of database.
+  b) Migrate prisma npx prisma migrate deploy
+  c) Load medicines npx ts-node prisma/load_medicines.ts
+  d) Load Seed File  npx ts-node prisma/seed.ts
+
+Note : If you want to keep a permanent record of these changes in your project history, tell Prisma to generate a new migration file and apply it:  npx prisma migrate dev --name added_billing_and_fees. If we do this, prisma migration has the latest schema as per defined in schema file. It will be easy for migration and deployment. This shd have been done before migration of step b.
+
+
+	
