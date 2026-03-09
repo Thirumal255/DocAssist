@@ -1,7 +1,11 @@
 # DocAssist Backend Dockerfile
 # Node.js 20 LTS on Alpine for smaller image size
 
-FROM node:20-alpine AS builder
+# Use the slim Debian image instead of Alpine
+FROM node:20-slim AS builder
+
+# Install OpenSSL for Prisma
+RUN apt-get update -y && apt-get install -y openssl
 
 WORKDIR /app
 

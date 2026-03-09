@@ -27,11 +27,11 @@ Instance : docassist-db ,User name and password : postgres/Docassist@123
 
 db name is docassist
 
-34.100.162.216 Public IP of Postgress
+34.47.232.46 Public IP of Postgress
 
-Connection Name: mf-advisor-487108:asia-south1:docassist-db
+Connection Name: mydocassist:asia-south1:docassist-db
 
-DATABASE_URL="postgresql://postgres:Docassist@123@34.100.162.216:5432/docassist"
+DATABASE_URL="postgresql://postgres:Docassist@123@34.47.232.46:5432/docassist"
 
 For Migration
   a) connect to google cloud through env file changes of database.
@@ -40,6 +40,15 @@ For Migration
   d) Load Seed File  npx ts-node prisma/seed.ts
 
 Note : If you want to keep a permanent record of these changes in your project history, tell Prisma to generate a new migration file and apply it:  npx prisma migrate dev --name added_billing_and_fees. If we do this, prisma migration has the latest schema as per defined in schema file. It will be easy for migration and deployment. This shd have been done before migration of step b.
+
+
+DATABASE_URL =  postgresql://postgres:Docassist@123@localhost/docassist?host=/cloudsql/mydocassist:asia-south1:docassist-db
+
+
+
+Backend URL : https://docassist-21140096898.asia-south1.run.app
+
+
 
 
 	

@@ -5,7 +5,8 @@
 import { useAuthStore } from '../store/authStore'; 
 import { log } from '../utils/logger';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.50:3000';
+//const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.50:3000';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://docassist-21140096898.asia-south1.run.app/api';
 
 // Define the standard response structure
 interface ApiResponse<T> {
