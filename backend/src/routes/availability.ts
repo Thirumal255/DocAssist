@@ -104,7 +104,7 @@ router.get('/:doctorId/slots', authMiddleware, async (req: AuthRequest, res: Res
 
     // 3. Generate 15-min Time Slots
     const generatedSlots: any[] = [];
-    const bookedTimes = new Set(existingAppointments.map(app => 
+    const bookedTimes = new Set(existingAppointments.map((app: any) => 
       new Date(app.scheduledAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
     ));
 

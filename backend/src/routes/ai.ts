@@ -37,10 +37,10 @@ async function getPatientContext(patientId: string): Promise<PatientContext> {
     chronicConditions: patient.chronicConditions as string[] || [],
     allergies: patient.allergies as string[] || [],
     recentPrescriptions: patient.visits
-      .filter(v => v.prescription)
-      .map(v => ({
+      .filter((v: any) => v.prescription)
+      .map((v: any) => ({
         diagnosis: v.prescription!.diagnosis,
-        medicines: v.prescription!.items.map(i => i.medicineName),
+        medicines: v.prescription!.items.map((i: any) => i.medicineName),
         date: v.visitedAt.toISOString()
       }))
   };
