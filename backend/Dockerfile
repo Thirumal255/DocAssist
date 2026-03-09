@@ -1,7 +1,6 @@
 # DocAssist Backend Dockerfile
-# Node.js 20 LTS on Alpine for smaller image size
 
-# Use the slim Debian image instead of Alpine
+# --- STAGE 1: BUILDER ---
 FROM node:20-slim AS builder
 
 # Install OpenSSL for Prisma
@@ -17,8 +16,11 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Production image
-FROM node:20-alpine
+# --- STAGE 2: PRODUCTION ---
+FROM node:20-slim
+
+# Install OpenSSL for Prisma to use at runtime!
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -33,18 +35,14 @@ COPY --from=builder /app/prisma ./prisma
 # Give Prisma a dummy URL so it doesn't crash during the build phase
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost/dummy"
 
-# Generate Prisma client
+# Generate Prisma client for Debian
 RUN npx prisma@5 generate
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+# Switch to the secure 'node' user built into the image
+USER node
 
-USER nodejs
-
-# Expose port
+# Expose port (Cloud Run will override this with its own PORT variable, but it's good practice)
 EXPOSE 3000
-
 
 # Start server
 CMD ["node", "dist/index.js"]
