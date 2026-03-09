@@ -92,8 +92,9 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-app.listen(PORT, () => {
-  console.log(`\n🚀 DocAssist API running on http://localhost:${PORT}\n`);
+// Adding '0.0.0.0' tells the container to accept external traffic from Cloud Run
+app.listen(Number(PORT), '0.0.0.0', () => {
+  console.log(`\n🚀 DocAssist API running on port ${PORT} (0.0.0.0)\n`);
   printRoutes(app); 
 });
 
