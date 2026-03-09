@@ -43,14 +43,14 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
       include: { appointment: { include: { doctor: { select: { id: true, name: true } } } } }
     });
 
-    const totalRevenue = invoices.filter(i => i.status === 'PAID').reduce((sum, i) => sum + (i.amount || 0), 0);
-    const pendingRevenue = invoices.filter(i => i.status === 'PENDING').reduce((sum, i) => sum + (i.amount || 0), 0);
-    const refundedRevenue = invoices.filter(i => i.status === 'REFUNDED').reduce((sum, i) => sum + (i.amount || 0), 0);
+    const totalRevenue = invoices.filter((i: any) => i.status === 'PAID').reduce((sum: number, i: any) => sum + (i.amount || 0), 0);
+    const pendingRevenue = invoices.filter((i: any) => i.status === 'PENDING').reduce((sum: number, i: any) => sum + (i.amount || 0), 0);
+    const refundedRevenue = invoices.filter((i: any) => i.status === 'REFUNDED').reduce((sum: number, i: any) => sum + (i.amount || 0), 0);
 
     const paymentMethods = {
-      CASH: invoices.filter(i => i.status === 'PAID' && i.paymentMethod === 'CASH').length,
-      CARD: invoices.filter(i => i.status === 'PAID' && i.paymentMethod === 'CARD').length,
-      UPI: invoices.filter(i => i.status === 'PAID' && i.paymentMethod === 'UPI').length,
+      CASH: invoices.filter((i: any) => i.status === 'PAID' && i.paymentMethod === 'CASH').length,
+      CARD: invoices.filter((i: any) => i.status === 'PAID' && i.paymentMethod === 'CARD').length,
+      UPI: invoices.filter((i: any) => i.status === 'PAID' && i.paymentMethod === 'UPI').length,
     };
 
     // Fetch Appointments (Include Doctor Info)
@@ -63,21 +63,21 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
     });
 
     const totalAppointments = appointments.length;
-    const completedAppointments = appointments.filter(a => a.status === 'COMPLETED').length;
-    const cancelledAppointments = appointments.filter(a => a.status === 'CANCELLED').length;
-    const noShowAppointments = appointments.filter(a => a.status === 'NO_SHOW').length;
+    const completedAppointments = appointments.filter((a: any) => a.status === 'COMPLETED').length;
+    const cancelledAppointments = appointments.filter((a: any) => a.status === 'CANCELLED').length;
+    const noShowAppointments = appointments.filter((a: any) => a.status === 'NO_SHOW').length;
     
     // --- NEW: DOCTOR-WISE STATS CALCULATION ---
     const doctorStatsMap: Record<string, { name: string; appointments: number; revenue: number }> = {};
 
-    appointments.forEach(appt => {
+    appointments.forEach((appt: any) => {
       if (!appt.doctor) return;
       const docId = appt.doctor.id;
       if (!doctorStatsMap[docId]) doctorStatsMap[docId] = { name: appt.doctor.name, appointments: 0, revenue: 0 };
       doctorStatsMap[docId].appointments += 1;
     });
 
-    invoices.forEach(inv => {
+    invoices.forEach((inv: any) => {
       if (inv.status === 'PAID' && inv.appointment?.doctor) {
         const docId = inv.appointment.doctor.id;
         if (!doctorStatsMap[docId]) doctorStatsMap[docId] = { name: inv.appointment.doctor.name, appointments: 0, revenue: 0 };
