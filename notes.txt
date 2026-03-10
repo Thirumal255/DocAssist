@@ -51,7 +51,7 @@ Backend URL : https://docassist-21140096898.asia-south1.run.app
 
 Build FE apk.
 
-eas build -p android --profile preview
+eas build -p android --profile preview --clear-cache
 
 
 
