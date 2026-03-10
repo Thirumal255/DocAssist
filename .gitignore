@@ -4,6 +4,7 @@
 
 expo-env.d.ts
 # @end expo-cli
+mobile/.expo/
 
 backend/node_modules/
 mobile/node_modules/
