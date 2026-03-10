@@ -49,6 +49,10 @@ DATABASE_URL =  postgresql://postgres:Docassist@123@localhost/docassist?host=/cl
 Backend URL : https://docassist-21140096898.asia-south1.run.app
 
 
+Build FE apk.
+
+eas build -p android --profile preview
+
 
 
 	
