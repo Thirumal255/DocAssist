@@ -23,6 +23,7 @@ const MODULE = 'NewPrescription';
 
 interface MedicineItem {
   id: string;
+  medicineId?: string; // id in the medicine database, when picked from search
   name: string;
   genericName?: string;
   dose: string;
@@ -159,6 +160,7 @@ export default function NewPrescriptionScreen() {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     const newMed: MedicineItem = {
       id: Date.now().toString(),
+      medicineId: med.id,
       name: med.name, 
       genericName: med.saltComposition, 
       dose: '1-0-0',
@@ -171,10 +173,23 @@ export default function NewPrescriptionScreen() {
       description: med.medicineDesc,
       isExpanded: false
     };
-    setMedicines([...medicines, newMed]);
+    setMedicines(prev => [...prev, newMed]);
     setSearchQuery('');
     setSearchResults([]);
     setAiInteractionWarnings(null); 
+
+    // Pre-fill this doctor's usual dose for the medicine (doesn't block adding it).
+    medicinesApi.usualDose(med.id, med.name).then(result => {
+      const usual = result.data?.usual;
+      if (!usual) return;
+      setMedicines(prev => prev.map(m => m.id === newMed.id ? {
+        ...m,
+        dose: usual.dose,
+        frequency: usual.frequency,
+        timing: usual.timing as MedicineItem['timing'],
+        days: usual.days,
+      } : m));
+    }).catch(() => { /* keep defaults */ });
   };
 
   // --- NEW HANDLER: Add Custom Medicine ---
@@ -282,6 +297,7 @@ export default function NewPrescriptionScreen() {
             temperature: vitals.temperature ? parseFloat(vitals.temperature) : undefined,
         },
         items: medicines.map(med => ({
+          medicineId: med.medicineId,
           medicineName: med.name,
           genericName: med.genericName || undefined,
           dose: med.dose,

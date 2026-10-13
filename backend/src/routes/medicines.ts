@@ -1,32 +1,20 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
-import crypto from 'crypto'; // <--- 1. Add this import
+import crypto from 'crypto';
+import { searchMedicines } from '../services/medicine-search';
 
 const router = Router();
-const prisma = new PrismaClient();
 
-// Search Medicines
+// Search Medicines (ranked for the doctor; see services/medicine-search.ts)
 router.get('/search', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const { q } = req.query;
-
-    if (!q || typeof q !== 'string' || q.length < 2) {
+    const { q, limit } = req.query;
+    if (!q || typeof q !== 'string' || q.trim().length < 2) {
       return res.json([]);
     }
-
-    const medicines = await prisma.medicine.findMany({
-      where: {
-        OR: [
-          { name: { contains: q, mode: 'insensitive' } },
-          { saltComposition: { contains: q, mode: 'insensitive' } }
-        ]
-      },
-      take: 20,
-      orderBy: { name: 'asc' }
-    });
-
-    res.json(medicines);
+    const results = await searchMedicines(req.user!.id, q, Number(limit) || 20);
+    res.json(results);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Failed to search medicines' });

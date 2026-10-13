@@ -1,9 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
-const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me-in-production';
+import { config } from '../config';
+
+const JWT_SECRET = config.jwtSecret;
 
 export interface AuthRequest extends Request {
   user?: {
@@ -42,14 +43,16 @@ export const authMiddleware = async (
         specialty: true,
         phone: true,
         registrationNo: true,
+        isActive: true,
       },
     });
 
-    if (!user) {
+    if (!user || !user.isActive) {
       return res.status(401).json({ error: 'User not found' });
     }
 
-    req.user = user;
+    const { isActive: _active, ...activeUser } = user;
+    req.user = activeUser;
     next();
   } catch (error: any) {
     if (error.name === 'TokenExpiredError') {

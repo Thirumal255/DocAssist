@@ -1,49 +1,38 @@
-# DocAssist Backend Dockerfile
+# DocAssist backend: Node 20 + Express + Prisma, built for Cloud Run.
+# The same image runs the API service and the one-off jobs
+# (migrations, medicine import, admin creation).
 
-# --- STAGE 1: BUILDER ---
+# --- Build stage ---
 FROM node:20-slim AS builder
-
-# Install OpenSSL for Prisma
-RUN apt-get update -y && apt-get install -y openssl
-
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
-# Install dependencies
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --no-audit --no-fund
 
-# Copy source and build
-COPY . .
-RUN npm run build
+COPY tsconfig.json ./
+COPY prisma ./prisma
+COPY src ./src
+RUN npx prisma generate && npm run build
 
-# --- STAGE 2: PRODUCTION ---
+# --- Runtime stage ---
 FROM node:20-slim
-
-# Install OpenSSL for Prisma to use at runtime!
-RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
-
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
+ENV NODE_ENV=production
 
-# Install production dependencies only
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 
-# Copy built files
+# Schema, migrations and the medicine CSV (used by the import job).
+COPY prisma ./prisma
+# Generate the client and fetch the migration engine now, as root, so the
+# migrate job never needs to download anything at runtime.
+RUN npx prisma generate && npx prisma --version >/dev/null
+
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
 
-# Give Prisma a dummy URL so it doesn't crash during the build phase
-ENV DATABASE_URL="postgresql://dummy:dummy@localhost/dummy"
-
-# Generate Prisma client for Debian
-RUN npx prisma@5 generate
-
-# Switch to the secure 'node' user built into the image
 USER node
-
-# Expose port (Cloud Run will override this with its own PORT variable, but it's good practice)
-EXPOSE 3000
-
-# Start server
+EXPOSE 8080
+# Cloud Run sets PORT; the server listens on process.env.PORT.
 CMD ["node", "dist/index.js"]
-# Note: Cloud Run will set the PORT environment variable automatically, so our server should listen on process.env.PORT || 3000.

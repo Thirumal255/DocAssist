@@ -1,15 +1,16 @@
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { logger } from '../utils/logger'; // Import your logger
 
 const router = Router();
-const prisma = new PrismaClient();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me-in-production';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+import { config } from '../config';
+
+const JWT_SECRET = config.jwtSecret;
+const JWT_EXPIRES_IN = config.jwtExpiresIn;
 
 router.post('/login', async (req: Request, res: Response) => {
   const { email, password } = req.body;
@@ -28,6 +29,11 @@ router.post('/login', async (req: Request, res: Response) => {
     if (!user) {
       logger.warn('Auth', `Login failed: User not found for ${email}`);
       return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    if (!user.isActive) {
+      logger.warn('Auth', `Login blocked: account deactivated for ${email}`);
+      return res.status(403).json({ error: 'Account is deactivated' });
     }
 
     // FIX: Changed user.passwordHash to user.password to match schema

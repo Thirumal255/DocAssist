@@ -1,8 +1,13 @@
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Created on first use: the SDK throws when the key is missing, and AI is
+// optional, so a missing key must not stop the server from starting.
+let client: OpenAI | null = null;
+function getClient(): OpenAI {
+  if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not set');
+  client ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 20_000, maxRetries: 1 });
+  return client;
+}
 
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
@@ -83,7 +88,7 @@ Please suggest appropriate medications. Respond in this exact JSON format:
 }`;
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getClient().chat.completions.create({
       model: MODEL,
       messages: [
         { role: 'system', content: systemPrompt },
@@ -133,7 +138,7 @@ Respond in JSON format:
 }`;
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getClient().chat.completions.create({
       model: MODEL,
       messages: [
         { 
@@ -177,7 +182,7 @@ ${visits.map(v => `- ${v.date}: ${v.diagnosis} (Rx: ${v.medicines.join(', ')})`)
 Keep it brief and clinically relevant.`;
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getClient().chat.completions.create({
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.3,

@@ -1,32 +1,18 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
+import { isAllowedImage, saveUpload } from '../lib/storage';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
-const prisma = new PrismaClient();
 
-// Configure where and how Multer saves files
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    // Save to backend/uploads/
-    const dir = path.join(process.cwd(), 'uploads');
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    // Create a unique filename: timestamp-random.ext
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-// We expect up to two files: a logo and a signature
-const upload = multer({ storage }).fields([
+// Keep uploads in memory (max 2 MB, images only), then hand them to the
+// storage module, which writes to Cloud Storage in production.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => cb(null, isAllowedImage(file.mimetype)),
+}).fields([
   { name: 'logo', maxCount: 1 },
   { name: 'signature', maxCount: 1 }
 ]);
@@ -46,8 +32,12 @@ router.post('/', authMiddleware, upload, async (req: AuthRequest, res: Response)
 
     // Extract uploaded files if they exist
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-    const logoUrl = files?.logo ? `/uploads/${files.logo[0].filename}` : null;
-    const digitalSignatureUrl = files?.signature ? `/uploads/${files.signature[0].filename}` : null;
+    const logoUrl = files?.logo
+      ? await saveUpload(files.logo[0].buffer, files.logo[0].mimetype)
+      : null;
+    const digitalSignatureUrl = files?.signature
+      ? await saveUpload(files.signature[0].buffer, files.signature[0].mimetype)
+      : null;
 
     // Create the template in the database
     // Note: FormData sends booleans as strings ("true"/"false"), so we convert them

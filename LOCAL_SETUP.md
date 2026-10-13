@@ -56,7 +56,7 @@ cd docassist/backend
 npm install
 
 # Copy environment file
-cp .env.development .env
+cp .env.example .env
 
 # Edit .env if needed (default settings work for local postgres)
 # DATABASE_URL="postgresql://postgres:postgres@localhost:5432/docassist_dev"
@@ -67,10 +67,13 @@ cp .env.development .env
 # Generate Prisma client
 npm run db:generate
 
-# Push schema to database
-npm run db:push
+# Create tables (applies prisma/migrations)
+npx prisma migrate deploy
 
-# Seed with test data
+# Load the Indian medicine database (~2.5 lakh rows, a few minutes)
+npm run db:load-medicines
+
+# Seed demo users and data (local only; refuses to run in production)
 npm run db:seed
 ```
 
@@ -105,7 +108,7 @@ cd docassist/mobile
 npm install
 
 # Copy environment file
-cp .env.development .env
+cp .env.example .env
 ```
 
 ### For Emulator Testing
@@ -168,7 +171,7 @@ npx expo start
    OPENAI_API_KEY=sk-your-key-here
    ```
 
-**Note:** AI features work without the key - they'll just return empty suggestions.
+**Note:** AI is optional. Without a key, database suggestions and safety checks still work.
 
 ---
 
@@ -242,7 +245,7 @@ Once local dev is working:
 # Backend
 cd backend
 npm run dev          # Start dev server
-npm run db:push      # Push schema changes
+npx prisma migrate dev --name <change>   # Schema change -> new migration
 npm run db:seed      # Reset and seed data
 npm run db:studio    # Open Prisma Studio (DB GUI)
 

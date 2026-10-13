@@ -4,12 +4,12 @@ A mobile-first Android application designed to streamline the daily workflows of
 
 ## 🩺 Features
 
-- **Authentication** - Role-based login for Doctors and Admins via Firebase
+- **Authentication** - Email and password login with role-based access (admin, doctor, receptionist)
 - **Dashboard** - Daily stats, appointment queue, quick actions
 - **Patient Management** - Complete patient profiles, visit history, vitals tracking
-- **Prescription Writing** - Indian medicine database, AI-assisted suggestions via Gemini
+- **Prescription Writing** - Indian medicine database (2.5 lakh brands) with ranked search, the doctor's usual doses and regimens, and safety checks (allergies, duplicate salts, interactions)
 - **Appointment Scheduling** - Calendar view, SMS reminders, status management
-- **AI Clinical Support** - Gemini-powered drug suggestions based on diagnosis and history
+- **AI Clinical Support** - optional OpenAI suggestions when the doctor has no history for a diagnosis, always passed through the safety checks
 - **PDF Generation** - Prescription printing with clinic letterhead
 
 ## 📱 Screenshots
@@ -31,14 +31,15 @@ A mobile-first Android application designed to streamline the daily workflows of
 - **Runtime**: Node.js 20 LTS
 - **Framework**: Express.js
 - **ORM**: Prisma
-- **Database**: PostgreSQL (Supabase)
-- **Auth**: Firebase Admin SDK + JWT
-- **AI**: Google Gemini 1.5 Flash API
+- **Database**: PostgreSQL 16 (Cloud SQL in production)
+- **Auth**: bcrypt password hashes + JWT
+- **AI**: OpenAI (`gpt-4o-mini` by default), optional
 
 ### Infrastructure
-- **Hosting**: Google Cloud Run
-- **Storage**: Supabase Storage (PDFs)
-- **SMS**: Fast2SMS (India)
+- **Hosting**: Google Cloud Run (Mumbai), deployed by GitHub Actions; see [DEPLOYMENT.md](DEPLOYMENT.md)
+- **Database**: Cloud SQL for PostgreSQL 16
+- **Storage**: Cloud Storage (clinic logos, signatures)
+- **Secrets**: Secret Manager
 
 ## 📁 Project Structure
 
@@ -74,8 +75,7 @@ docassist/
 - npm or yarn
 - Expo CLI (`npm install -g expo-cli`)
 - Android Studio (for emulator) or Expo Go app
-- PostgreSQL database (Supabase recommended)
-- Firebase project (for auth)
+- PostgreSQL 15+ (local install, see LOCAL_SETUP.md)
 
 ### Mobile App Setup
 
@@ -107,8 +107,9 @@ cp .env.example .env
 # Generate Prisma client
 npm run db:generate
 
-# Push schema to database
-npm run db:push
+# Create tables and load the medicine database
+npx prisma migrate deploy
+npm run db:load-medicines
 
 # Start development server
 npm run dev
@@ -146,7 +147,7 @@ Key tables:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/auth/login` | POST | Firebase token verification |
+| `/auth/login` | POST | Email/password login, returns JWT |
 | `/patients` | GET/POST | List/create patients |
 | `/patients/:id/history` | GET | Patient visit history |
 | `/appointments` | GET/POST | List/create appointments |
@@ -176,12 +177,12 @@ Sources:
 
 ## 🔒 Security
 
-- Firebase Authentication with short-lived JWT tokens
+- Password hashing (bcrypt) and expiring JWT tokens; deactivated staff are blocked immediately
 - Role-based access control
 - HTTPS enforced (Cloud Run TLS)
 - Patient PII never sent to AI API
 - Prisma parameterized queries (SQL injection prevention)
-- API key storage in Google Cloud Secret Manager
+- All secrets in Google Cloud Secret Manager; none in the repo
 
 ## 📄 License
 

@@ -15,6 +15,7 @@ export interface CreatePrescriptionData {
     temperature?: number;
   };
   items: {
+    medicineId?: string;
     medicineName: string;
     genericName?: string;
     dose: string;

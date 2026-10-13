@@ -1,9 +1,9 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-
-
-dotenv.config();
+import helmet from 'helmet';
+import { config } from './config';
+import { prisma } from './lib/prisma';
+import { readUpload, nameFromUrl } from './lib/storage';
 
 import authRoutes from './routes/auth';
 import patientsRoutes from './routes/patients';
@@ -17,54 +17,50 @@ import availabilityRoutes from './routes/availability';
 import usersRoutes from './routes/users';
 import visitsRoutes from './routes/visits';
 import aiRoutes from './routes/ai';
-import templatesRoutes from './routes/templates'; // 👈 ADDED THIS
-import { apiLoggerMiddleware, printRoutes } from './utils/logger'; 
+import templatesRoutes from './routes/templates';
+import suggestionsRoutes from './routes/suggestions';
+import { apiLoggerMiddleware, printRoutes } from './utils/logger';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-import path from 'path';
-import fs from 'fs';
+const PORT = config.port;
 
-// ... (after const app = express();)
+// Cloud Run sits behind Google's load balancer.
+app.set('trust proxy', true);
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
-const uploadsPath = path.join(process.cwd(), 'uploads');
-
-// 1. Log the startup path
-console.log('-------------------------------------------');
-console.log(`📂 STARTUP CHECK: Looking for uploads at: ${uploadsPath}`);
-console.log(`📁 Does folder exist? ${fs.existsSync(uploadsPath) ? 'YES ✅' : 'NO ❌'}`);
-if (fs.existsSync(uploadsPath)) {
-  console.log(`📄 Files found: ${fs.readdirSync(uploadsPath).slice(0, 5).join(', ')}...`);
-}
-console.log('-------------------------------------------');
-
-// 2. Add a specialized logger for the /uploads route
-app.use('/uploads', (req, res, next) => {
-  const fullPath = path.join(uploadsPath, req.path);
-  console.log(`\n🔍 [STATIC FILE REQUEST]`);
-  console.log(`   URL: ${req.originalUrl}`);
-  console.log(`   Attempting to read: ${fullPath}`);
-  console.log(`   File exists on disk? ${fs.existsSync(fullPath) ? 'YES ✅' : 'NO ❌'}`);
-  next();
+// Clinic logos and doctor signatures (Cloud Storage in production, ./uploads locally).
+// File names are long random strings, so the URLs are not guessable.
+app.get('/uploads/:name', async (req, res, next) => {
+  try {
+    if (!nameFromUrl(req.params.name)) return res.status(404).end();
+    const file = await readUpload(req.params.name);
+    if (!file) return res.status(404).end();
+    res.set('Content-Type', file.contentType);
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(file.data);
+  } catch (err) {
+    next(err);
+  }
 });
 
-// 3. Serve the files
-app.use('/uploads', express.static(uploadsPath));
-
-app.use(cors());
-app.use(express.json());
+// The mobile app is not a browser, so CORS only matters for web clients.
+// Set CORS_ORIGINS to restrict; empty allows all (previous behaviour).
+app.use(cors(config.corsOrigins.length ? { origin: config.corsOrigins } : undefined));
+app.use(express.json({ limit: '1mb' }));
 app.use(apiLoggerMiddleware); 
 
-// 👈 ADDED THIS: Serve the 'uploads' directory statically so the app can see the images
-app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
-
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
-  next();
-});
-
+// Liveness: the process is up. Readiness: the database answers too.
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.get('/health/ready', async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ok', database: 'ok' });
+  } catch {
+    res.status(503).json({ status: 'error', database: 'unreachable' });
+  }
 });
 
 app.use('/api/auth', authRoutes);
@@ -79,11 +75,15 @@ app.use('/api/availability', availabilityRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/visits', visitsRoutes);
 app.use('/api/ai', aiRoutes);
-app.use('/api/templates', templatesRoutes); // 👈 ADDED THIS
+app.use('/api/templates', templatesRoutes);
+app.use('/api/suggestions', suggestionsRoutes);
 
 console.log('✅ All routes loaded');
 
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err?.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ error: 'File too large (max 2 MB)' });
+  }
   console.error('Error:', err);
   res.status(500).json({ error: 'Internal server error' });
 });
@@ -93,9 +93,17 @@ app.use((req, res) => {
 });
 
 // Adding '0.0.0.0' tells the container to accept external traffic from Cloud Run
-app.listen(Number(PORT), '0.0.0.0', () => {
-  console.log(`\n🚀 DocAssist API running on port ${PORT} (0.0.0.0)\n`);
-  printRoutes(app); 
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`DocAssist API running on port ${PORT}`);
+  if (!config.isProduction) printRoutes(app);
+});
+
+// Cloud Run sends SIGTERM before stopping an instance: finish in-flight
+// requests and close database connections cleanly.
+process.on('SIGTERM', () => {
+  server.close(() => {
+    prisma.$disconnect().finally(() => process.exit(0));
+  });
 });
 
 export default app;

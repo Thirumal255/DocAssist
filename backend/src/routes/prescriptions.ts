@@ -1,11 +1,9 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
-import fs from 'fs';
-import path from 'path';
+import { uploadAsDataUri } from '../lib/storage';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Get Prescriptions
 router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
@@ -69,33 +67,15 @@ router.get('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Prescription not found' });
     }
 
-    // Helper to convert local file to Base64
-    const getBase64 = (relativePath: string) => {
-      try {
-        // Since we moved 'uploads' to backend/uploads, path.join(process.cwd(), 'uploads', filename)
-        // Note: logoUrl already contains '/uploads/filename.png', so we replace the leading slash
-        const filePath = path.join(process.cwd(), relativePath.startsWith('/') ? relativePath.substring(1) : relativePath);
-        
-        if (fs.existsSync(filePath)) {
-          const fileBuffer = fs.readFileSync(filePath);
-          const extension = path.extname(filePath).replace('.', '') || 'png';
-          return `data:image/${extension};base64,${fileBuffer.toString('base64')}`;
-        }
-      } catch (err) {
-        console.error(`Base64 conversion failed for ${relativePath}:`, err);
-      }
-      return null;
-    };
-
     const doctor = prescription.doctor as any;
     if (doctor?.template) {
       // Convert Logo if exists
       if (doctor.template.logoUrl) {
-        doctor.template.logoBase64 = getBase64(doctor.template.logoUrl);
+        doctor.template.logoBase64 = await uploadAsDataUri(doctor.template.logoUrl);
       }
       // Convert Signature if exists
       if (doctor.template.digitalSignatureUrl) {
-        doctor.template.sigBase64 = getBase64(doctor.template.digitalSignatureUrl);
+        doctor.template.sigBase64 = await uploadAsDataUri(doctor.template.digitalSignatureUrl);
       }
     }
 
@@ -200,6 +180,15 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Link items to the medicine database when the app sends a medicineId.
+    // Unknown ids are dropped rather than failing the whole prescription.
+    const requestedIds = items.map((i: any) => i.medicineId).filter((x: unknown): x is string => typeof x === 'string' && x.length > 0);
+    const knownIds = new Set(
+      requestedIds.length
+        ? (await prisma.medicine.findMany({ where: { id: { in: requestedIds } }, select: { id: true } })).map((m) => m.id)
+        : [],
+    );
+
     // 3. Create Prescription
     const prescription = await prisma.prescription.create({
       data: {
@@ -212,6 +201,7 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
         aiSuggestionUsed: aiSuggestionUsed || false,
         items: {
           create: items.map((item: any) => ({
+            medicineId: knownIds.has(item.medicineId) ? item.medicineId : null,
             medicineName: item.medicineName,
             genericName: item.genericName,
             dose: item.dose,

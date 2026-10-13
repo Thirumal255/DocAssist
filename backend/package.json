@@ -11,12 +11,17 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:load-medicines": "tsx src/scripts/load-medicines.ts",
+    "admin:create": "tsx src/scripts/create-admin.ts",
+    "typecheck": "tsc --noEmit"
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@google-cloud/storage": "^7.22.0",
     "@prisma/client": "^5.8.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -29,6 +34,7 @@
     "multer": "^2.1.1",
     "openai": "^4.28.0",
     "pdfkit": "^0.15.0",
+    "prisma": "^5.8.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
@@ -38,9 +44,11 @@
     "@types/jsonwebtoken": "^9.0.5",
     "@types/multer": "^2.0.0",
     "@types/node": "^20.19.33",
-    "prisma": "^5.8.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.7.0",
     "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

@@ -28,6 +28,7 @@ model User {
   prescriptions   Prescription[]
   visits          Visit[]
   availability    DoctorAvailability[]
+  suggestionEvents SuggestionEvent[]
   templateId String?
   template   PrescriptionTemplate? @relation(fields: [templateId], references: [id])
   consultationFee Float @default(0) // Used for doctors. Defaults to 0 for admins/receptionists.
@@ -188,11 +189,16 @@ model Prescription {
   doctor           User               @relation(fields: [doctorId], references: [id])
   diagnosis        String
   aiSuggestionUsed Boolean            @default(false)
+  notes            String?
   pdfUrl           String?
   createdAt        DateTime           @default(now())
 
   items            PrescriptionItem[]
 
+  @@index([doctorId, createdAt])
+  @@index([patientId, createdAt])
+  // Trigram index: finds this doctor's past prescriptions for a similar diagnosis
+  @@index([diagnosis(ops: raw("gin_trgm_ops"))], type: Gin)
   @@map("prescriptions")
 }
 
@@ -201,6 +207,10 @@ model PrescriptionItem {
   id             String       @id @default(cuid())
   prescriptionId String
   prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  // Set when the medicine was picked from the database; enables usage ranking
+  // and salt-level safety checks. Null for free-typed medicines and older rows.
+  medicineId     String?
+  medicine       Medicine?    @relation(fields: [medicineId], references: [id], onDelete: SetNull)
   medicineName   String
   genericName    String?
   dose           String
@@ -209,6 +219,8 @@ model PrescriptionItem {
   days           Int          @default(30)
   instructions   String?
 
+  @@index([prescriptionId])
+  @@index([medicineId])
   @@map("prescription_items")
 }
 
@@ -228,6 +240,11 @@ model Medicine {
 
   createdAt        DateTime @default(now()) @map("created_at")
 
+  prescriptionItems PrescriptionItem[]
+
+  // Trigram indexes: fast, typo-tolerant search by brand and by salt
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([saltComposition(ops: raw("gin_trgm_ops"))], type: Gin)
   @@map("medicines") // The actual table name in Postgres
 }
 
@@ -302,4 +319,37 @@ model ClinicSettings {
   footerText  String?
   
   updatedAt   DateTime @updatedAt
+}
+
+// --- Prescription suggestions: learning loop ---
+// Every suggestion shown to a doctor and what they did with it. Used to
+// measure which suggestions help and to tune ranking per doctor over time.
+enum SuggestionKind {
+  medicine_search
+  dose_default
+  diagnosis_regimen
+  ai_regimen
+  safety_warning
+}
+
+enum SuggestionOutcome {
+  accepted
+  edited
+  rejected
+  ignored
+}
+
+model SuggestionEvent {
+  id         String            @id @default(cuid())
+  doctorId   String
+  doctor     User              @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patientId  String?
+  kind       SuggestionKind
+  outcome    SuggestionOutcome
+  suggestion Json // what was shown
+  final      Json? // what the doctor actually saved, if edited
+  createdAt  DateTime          @default(now())
+
+  @@index([doctorId, kind, createdAt])
+  @@map("suggestion_events")
 }

@@ -1,0 +1,184 @@
+name: Deploy backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-deploy.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "deploy = build + migrate + deploy API. bootstrap = load medicines + create admin (first time only)."
+        type: choice
+        options: [deploy, bootstrap]
+        default: deploy
+
+concurrency:
+  group: backend-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  SERVICE: docassist-api
+  IMAGE_REPO: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/docassist/backend
+
+jobs:
+  check:
+    name: Type-check and migration drift
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npx prisma validate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      - run: npx prisma generate
+      - run: npm run typecheck
+      # Fails if the migrations in prisma/migrations don't produce exactly schema.prisma.
+      - name: Check migrations match schema.prisma
+        run: |
+          npx prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema-datamodel prisma/schema.prisma \
+            --shadow-database-url postgresql://postgres:postgres@localhost:5432/postgres \
+            --exit-code
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+
+  deploy:
+    name: Build, migrate, deploy
+    needs: check
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.task == 'deploy')
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write # for Workload Identity Federation (no JSON keys)
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push image
+        run: |
+          gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
+          docker build -t "$IMAGE_REPO:${GITHUB_SHA}" backend
+          docker push "$IMAGE_REPO:${GITHUB_SHA}"
+
+      - name: Run database migrations
+        run: |
+          gcloud run jobs deploy docassist-migrate \
+            --image "$IMAGE_REPO:${GITHUB_SHA}" \
+            --region "${{ vars.GCP_REGION }}" \
+            --service-account "${{ vars.GCP_RUNTIME_SA }}" \
+            --set-cloudsql-instances "${{ vars.CLOUDSQL_CONNECTION }}" \
+            --set-secrets DATABASE_URL=docassist-database-url:latest \
+            --command npx --args prisma,migrate,deploy \
+            --max-retries 0 --task-timeout 10m \
+            --execute-now --wait
+
+      - name: Deploy API
+        run: |
+          SECRETS="DATABASE_URL=docassist-database-url:latest,JWT_SECRET=docassist-jwt-secret:latest"
+          if gcloud secrets describe docassist-openai-api-key >/dev/null 2>&1; then
+            SECRETS="$SECRETS,OPENAI_API_KEY=docassist-openai-api-key:latest"
+          fi
+          gcloud run deploy "$SERVICE" \
+            --image "$IMAGE_REPO:${GITHUB_SHA}" \
+            --region "${{ vars.GCP_REGION }}" \
+            --service-account "${{ vars.GCP_RUNTIME_SA }}" \
+            --add-cloudsql-instances "${{ vars.CLOUDSQL_CONNECTION }}" \
+            --set-secrets "$SECRETS" \
+            --set-env-vars "NODE_ENV=production,GCS_BUCKET=${{ vars.GCS_BUCKET }}" \
+            --allow-unauthenticated \
+            --cpu 1 --memory 512Mi --concurrency 40 \
+            --min-instances 0 --max-instances 3 \
+            --cpu-boost --timeout 60
+
+      - name: Smoke test
+        run: |
+          URL="$(gcloud run services describe "$SERVICE" --region "${{ vars.GCP_REGION }}" --format='value(status.url)')"
+          echo "API URL: $URL  (mobile app: EXPO_PUBLIC_API_URL=$URL/api)"
+          for _ in 1 2 3 4 5; do
+            if curl -fsS "$URL/health/ready"; then echo; exit 0; fi
+            sleep 5
+          done
+          echo "Readiness check failed" >&2; exit 1
+
+  bootstrap:
+    name: Load medicines + create admin (first time)
+    if: github.event_name == 'workflow_dispatch' && inputs.task == 'bootstrap' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Find the deployed image
+        id: image
+        run: |
+          IMAGE="$(gcloud run services describe "$SERVICE" --region "${{ vars.GCP_REGION }}" \
+            --format='value(spec.template.spec.containers[0].image)')"
+          if [ -z "$IMAGE" ]; then echo "Deploy the API first (task = deploy)." >&2; exit 1; fi
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Load the medicine database (~2.5 lakh rows, safe to re-run)
+        run: |
+          gcloud run jobs deploy docassist-load-medicines \
+            --image "${{ steps.image.outputs.image }}" \
+            --region "${{ vars.GCP_REGION }}" \
+            --service-account "${{ vars.GCP_RUNTIME_SA }}" \
+            --set-cloudsql-instances "${{ vars.CLOUDSQL_CONNECTION }}" \
+            --set-secrets DATABASE_URL=docassist-database-url:latest \
+            --command node --args dist/scripts/load-medicines.js \
+            --memory 1Gi --max-retries 0 --task-timeout 30m \
+            --execute-now --wait
+
+      - name: Create the clinic admin account
+        run: |
+          gcloud run jobs deploy docassist-create-admin \
+            --image "${{ steps.image.outputs.image }}" \
+            --region "${{ vars.GCP_REGION }}" \
+            --service-account "${{ vars.GCP_RUNTIME_SA }}" \
+            --set-cloudsql-instances "${{ vars.CLOUDSQL_CONNECTION }}" \
+            --set-secrets "DATABASE_URL=docassist-database-url:latest,ADMIN_PASSWORD=docassist-admin-password:latest" \
+            --set-env-vars "ADMIN_EMAIL=${{ vars.ADMIN_EMAIL }}" \
+            --command node --args dist/scripts/create-admin.js \
+            --max-retries 0 --task-timeout 5m \
+            --execute-now --wait

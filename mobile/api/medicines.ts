@@ -15,6 +15,18 @@ export const medicinesApi = {
     return api.get<Medicine>(`/medicines/${id}`);
   },
 
+  // This doctor's usual dose/frequency/timing/days for a medicine
+  usualDose: async (medicineId?: string, name?: string) => {
+    const params = new URLSearchParams();
+    if (medicineId) params.set('medicineId', medicineId);
+    if (name) params.set('name', name);
+    return api.get<{
+      source: string;
+      usual: { dose: string; frequency: string; timing: string; days: number; uses: number } | null;
+      totalUses: number;
+    }>(`/suggestions/medicine-defaults?${params.toString()}`);
+  },
+
   // --- NEW: Create medicine on the fly ---
   create: async (name: string) => {
     return api.post<Medicine>('/medicines', { name });

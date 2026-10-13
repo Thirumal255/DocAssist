@@ -12,3 +12,12 @@ mobile/bkp.env
 backend/bkp.env
 mobile/.env
 backend/.env
+# Never commit credentials or local notes
+notes.txt
+*.local.md
+**/.env*
+!**/.env.example
+# Office lock files
+~$*
+# Runtime uploads (stored in Cloud Storage in production)
+backend/uploads/

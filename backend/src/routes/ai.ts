@@ -1,50 +1,11 @@
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth';
 // Import the actual OpenAI service functions
-import { getPrescriptionSuggestions, checkDrugInteractions, PatientContext } from '../services/openai.service';
+import { getPrescriptionSuggestions, checkDrugInteractions } from '../services/openai.service';
+import { getPatientContext } from '../services/patient-context';
+import { checkPrescriptionSafety } from '../services/rx-safety';
 
 const router = Router();
-const prisma = new PrismaClient();
-
-// ------------------------------------------------------------------
-// 1. Helper Function: getPatientContext (PRESERVED FROM ORIGINAL)
-// ------------------------------------------------------------------
-async function getPatientContext(patientId: string): Promise<PatientContext> {
-  const patient = await prisma.patient.findUnique({
-    where: { id: patientId },
-    include: {
-      visits: {
-        take: 3,
-        orderBy: { visitedAt: 'desc' },
-        include: {
-          prescription: {
-            include: { items: true }
-          }
-        }
-      }
-    }
-  });
-
-  if (!patient) throw new Error('Patient not found');
-
-  // Calculate age from DOB
-  const age = new Date().getFullYear() - new Date(patient.dob).getFullYear();
-
-  return {
-    age,
-    gender: patient.gender,
-    chronicConditions: patient.chronicConditions as string[] || [],
-    allergies: patient.allergies as string[] || [],
-    recentPrescriptions: patient.visits
-      .filter((v: any) => v.prescription)
-      .map((v: any) => ({
-        diagnosis: v.prescription!.diagnosis,
-        medicines: v.prescription!.items.map((i: any) => i.medicineName),
-        date: v.visitedAt.toISOString()
-      }))
-  };
-}
 
 // ------------------------------------------------------------------
 // 2. Diagnosis Suggestion Route (Uses OpenAI)
@@ -77,22 +38,38 @@ router.post('/suggest', authMiddleware, async (req: Request, res: Response) => {
 });
 
 // ------------------------------------------------------------------
-// 3. Drug Interaction Route (UPDATED to use OpenAI)
+// 3. Drug Interaction Route (kept for the current app; same response shape)
+//    Database rules first; the AI check is a labelled second opinion.
 // ------------------------------------------------------------------
 router.post('/drug-interaction', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const { medicines, patientAllergies } = req.body;
+    const { medicines, patientAllergies, patientId } = req.body;
 
     if (!medicines || !Array.isArray(medicines)) {
       return res.status(400).json({ error: 'Medicines array is required' });
     }
+    const names: string[] = medicines.filter((m: unknown) => typeof m === 'string' && m.trim()).slice(0, 30);
+    const allergies: string[] = Array.isArray(patientAllergies) ? patientAllergies : [];
 
-    // Call the OpenAI service function (Replaces local hardcoded rules)
-    const result = await checkDrugInteractions(medicines, patientAllergies || []);
-    
-    // Return the result directly (Frontend expects result.data.warnings)
-    res.json(result);
+    const rules = await checkPrescriptionSafety({
+      items: names.map((name) => ({ name })),
+      allergies,
+      patientId: typeof patientId === 'string' ? patientId : undefined,
+    });
+    const ai = process.env.OPENAI_API_KEY
+      ? await checkDrugInteractions(names, allergies)
+      : { interactions: [], warnings: [] };
 
+    const icon: Record<string, string> = { critical: '⛔', high: '⚠️', medium: '⚠️', low: 'ℹ️', info: 'ℹ️' };
+    const ruleLines = rules.warnings.map((w) => `${icon[w.severity]} ${w.message}`);
+    const aiLines = [...ai.interactions, ...ai.warnings].map((w) => `🤖 AI check (verify): ${w}`);
+
+    res.json({
+      interactions: rules.warnings.filter((w) => w.type === 'interaction').map((w) => w.message),
+      warnings: [...ruleLines, ...aiLines],
+      details: rules.warnings,
+      ok: rules.ok,
+    });
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Failed to check drug interactions' });

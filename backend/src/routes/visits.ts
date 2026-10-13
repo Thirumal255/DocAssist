@@ -1,9 +1,8 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
@@ -97,7 +96,7 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
     if (appointmentId) {
       await prisma.appointment.update({
         where: { id: appointmentId },
-        data: { status: 'completed' }
+        data: { status: 'COMPLETED' }
       });
     }
 

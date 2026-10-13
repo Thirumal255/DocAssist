@@ -1,16 +1,17 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
-const prisma = new PrismaClient();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+import { config } from '../config';
+
+const JWT_SECRET = config.jwtSecret;
+const JWT_EXPIRES_IN = config.jwtExpiresIn;
 
 export interface JWTPayload {
   userId: string;
   email: string;
-  role: 'doctor' | 'admin';
+  role: 'doctor' | 'admin' | 'receptionist';
 }
 
 export interface AuthResult {
@@ -146,9 +147,6 @@ export async function loginUser(email: string, password: string): Promise<AuthRe
     if (!user.isActive) {
       return { success: false, error: 'Account is deactivated' };
     }
-
-    // Debug log
-    console.log('Login attempt:', { email, hasPassword: !!user.password });
 
     // Verify password - using 'password' field to match schema
     const isValid = await verifyPassword(password, user.password);

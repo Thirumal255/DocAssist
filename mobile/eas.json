@@ -5,11 +5,15 @@
   },
   "build": {
     "preview": {
+      "environment": "preview",
       "android": {
         "buildType": "apk"
-      },
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://docassist-21140096898.asia-south1.run.app/api"
+      }
+    },
+    "production": {
+      "environment": "production",
+      "android": {
+        "buildType": "app-bundle"
       }
     }
   },
