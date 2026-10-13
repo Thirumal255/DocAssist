@@ -1,0 +1,64 @@
+name: Build mobile app
+
+# Every push to main that changes the app starts an EAS build of the
+# installable Android APK (profile "preview"). The build itself runs on
+# Expo's servers; this job only queues it, so it finishes in a minute or two.
+# The APK link appears on expo.dev (Builds) and in the run summary.
+#
+# Needs the repository secret EXPO_TOKEN (expo.dev > Account settings >
+# Access tokens) and the EAS variable EXPO_PUBLIC_API_URL for the
+# "preview" environment (see DEPLOYMENT.md).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/mobile-build.yml"
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "preview = APK for testing, production = Play Store bundle"
+        type: choice
+        options: [preview, production]
+        default: preview
+
+concurrency:
+  group: mobile-build-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Queue EAS Android build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci
+
+      - name: Start build
+        run: |
+          PROFILE="${{ inputs.profile || 'preview' }}"
+          eas build --platform android --profile "$PROFILE" --non-interactive --no-wait --json > build.json
+          # Link to the build if the JSON has the usual fields, else to the builds list.
+          URL=$(node -e "try{const b=require('./build.json');const x=Array.isArray(b)?b[0]:b;console.log('https://expo.dev/accounts/'+x.project.ownerAccount.name+'/projects/'+x.project.slug+'/builds/'+x.id)}catch{console.log('https://expo.dev (Projects > docassist > Builds)')}")
+          echo "EAS $PROFILE build queued: $URL"
+          echo "### EAS $PROFILE build queued" >> "$GITHUB_STEP_SUMMARY"
+          echo "$URL" >> "$GITHUB_STEP_SUMMARY"

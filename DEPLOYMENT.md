@@ -71,9 +71,19 @@ eas build -p android --profile preview      # APK for testing
 
 Use `--environment production` with `--profile production` for Play Store builds.
 
+### Automatic APK builds
+
+`.github/workflows/mobile-build.yml` queues an EAS `preview` APK build on every push to `main` that changes `mobile/**`. The run summary links to the build on expo.dev; download and install the APK from there. One-time setup:
+
+1. Create an access token at expo.dev → Account settings → Access tokens.
+2. Add it as a GitHub repository **secret** named `EXPO_TOKEN` (`gh secret set EXPO_TOKEN --repo Thirumal255/DocAssist`).
+3. Make sure `EXPO_PUBLIC_API_URL` exists for the `preview` environment (above).
+
+For a Play Store bundle, run **Actions → Build mobile app → Run workflow** with profile `production`. Each build counts towards your EAS plan's monthly build limit.
+
 ## Day to day
 
-- **Deploy:** merge to `main`. Schema changes ship as Prisma migrations: run `npx prisma migrate dev --name <change>` locally and commit the new folder. Never use `prisma db push` against shared databases.
+- **Deploy:** merge to `main`. Backend changes deploy to Cloud Run; mobile changes start a new APK build. Schema changes ship as Prisma migrations: run `npx prisma migrate dev --name <change>` locally and commit the new folder. Never use `prisma db push` against shared databases.
 - **Logs:** Cloud Console → Cloud Run → `docassist-api` → Logs.
 - **Connect to the database:** use the Cloud SQL Auth Proxy (`cloud-sql-proxy <connection-name>`), then `psql`. The instance accepts no direct connections.
 - **Rotate the JWT secret:** add a new version of `docassist-jwt-secret`, then redeploy. Everyone is signed out.

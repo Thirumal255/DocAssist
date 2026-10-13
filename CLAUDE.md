@@ -6,8 +6,8 @@ Read `docs/decisions.md` at the start of a session: it has the product decisions
 
 ## Layout
 - `backend/`: Node 20, Express, TypeScript, Prisma 5, PostgreSQL 16. Entry `src/index.ts`; all API routes under `/api`.
-- `mobile/`: Expo SDK 51 / React Native, Expo Router, Zustand, TanStack Query. API base URL from `EXPO_PUBLIC_API_URL`.
-- `deploy/setup-gcp.sh`: one-time GCP project setup. `.github/workflows/backend-deploy.yml`: CI/CD.
+- `mobile/`: Expo SDK 54 / React Native, Expo Router, Zustand, TanStack Query. API base URL from `EXPO_PUBLIC_API_URL`.
+- `deploy/setup-gcp.sh`: one-time GCP project setup. `.github/workflows/backend-deploy.yml`: backend CI/CD. `.github/workflows/mobile-build.yml`: EAS APK build on push.
 - `DEPLOYMENT.md` (production), `LOCAL_SETUP.md` (local dev).
 
 ## Commands (backend)
@@ -43,7 +43,7 @@ The doctor types the prescription; the app suggests. Most suggestions come from 
 Cloud Run `docassist-api`, Cloud SQL `docassist-db` (Postgres 16, db-f1-micro), bucket `<project>-docassist-uploads`, Secret Manager (`docassist-database-url`, `docassist-jwt-secret`, `docassist-admin-password`, optional `docassist-openai-api-key`), GitHub Actions via Workload Identity Federation.
 - Push to `main` → check (typecheck + migration drift) → build image → `docassist-migrate` job → deploy → `/health/ready` smoke test.
 - Workflow dispatch `task=bootstrap` (first time only): load medicines + create admin.
-- Mobile: `eas env:create --name EXPO_PUBLIC_API_URL --value https://<run-url>/api --environment preview`, then `eas build -p android --profile preview`.
+- Mobile: `eas env:create --name EXPO_PUBLIC_API_URL --value https://<run-url>/api --environment preview` once. Then every push to `main` touching `mobile/**` queues `eas build -p android --profile preview` (needs GitHub secret `EXPO_TOKEN`); workflow dispatch with profile `production` for Play Store bundles.
 
 ## Status and next tasks
 - [ ] Project not deployed yet: run `deploy/setup-gcp.sh`, set GitHub variables, merge, bootstrap (see DEPLOYMENT.md).
