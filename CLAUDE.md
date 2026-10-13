@@ -2,6 +2,8 @@
 
 Clinic workflow app for Indian doctors: patients, appointments, visits/vitals, typed prescriptions with suggestions, billing, PDF prescriptions. Target users are small clinics (one doctor plus a receptionist), not hospitals.
 
+Read `docs/decisions.md` at the start of a session: it has the product decisions, roadmap and what is verified vs not.
+
 ## Layout
 - `backend/`: Node 20, Express, TypeScript, Prisma 5, PostgreSQL 16. Entry `src/index.ts`; all API routes under `/api`.
 - `mobile/`: Expo SDK 51 / React Native, Expo Router, Zustand, TanStack Query. API base URL from `EXPO_PUBLIC_API_URL`.
